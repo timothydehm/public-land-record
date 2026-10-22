@@ -88,8 +88,8 @@ a{color:inherit}
 .counts .v .sw{vertical-align:-1px;margin-right:4px}
 .counts .none{color:#a19da6}
 .card .note{font-size:12.5px;color:var(--muted);margin-top:6px}
-.pace{margin-top:7px;font-size:13.5px;display:flex;gap:12px;align-items:baseline}
-.pace .k{color:var(--muted);font-size:13px}
+.timing{margin-top:7px;font-size:13.5px;display:flex;gap:12px;align-items:baseline}
+.timing .k{color:var(--muted);font-size:13px;flex:none}
 .mine{margin-top:6px;font-size:14px;display:flex;align-items:center;gap:7px;min-height:20px}
 .mine b{font-weight:650}
 .cx{border-top:1px solid var(--mist);margin-top:9px;padding-top:7px;font-size:13.5px}
@@ -195,8 +195,10 @@ button.mrow:hover{background:var(--mist)}
        choice in the nearest group that has votes; a tie is grey).
      - Solid: that group is "at the lot". Hatched: it's farther away.
    "Show votes cast" narrows what the map shows; it never changes the record.
-   Pace (time between a voter's votes) is shown on the lot's card and in the
-   downloads; it doesn't change colors.
+   Timing: each vote keeps the seconds since the voter's previous vote. The
+   card shows a lot's median compared with every vote in the record ("longer
+   than 70% of votes"); no cutoffs. The downloads have each vote's seconds.
+   Timing doesn't change colors.
 
    The database (schema.sql) is reached only through six functions:
    cast_vote, lot_tallies, my_votes, lot_info, export_lots, export_votes.
@@ -234,12 +236,16 @@ const TIERS = [
 const TK = Object.fromEntries(TIERS.map((t, i) => [t.key, { ...t, rank: i + 1 }]));
 const FILTERS = ["lot", "block", "neighborhood", "ward", "city", "all"];   // "Show votes cast" choices
 const rankOf = k => k === "all" ? 7 : TK[k]?.rank ?? 7;
-// Pace: time since the voter's previous vote. Same as vote_pace() in schema.sql.
-const PACE = [
-  { key: "rapid", label: "rapid", hint: "under 10 seconds after the voter's previous vote" },
-  { key: "steady", label: "steady", hint: "10 seconds to 2 minutes" },
-  { key: "unhurried", label: "unhurried", hint: "over 2 minutes, or the voter's first vote" }
-];
+// Seconds: "2.4 s", "14 s", "3 min 20 s", "2 hr 5 min", "3 days".
+function fmtSecs(sec) {
+  if (sec < 10) return `${(+sec).toFixed(1)} s`;
+  if (sec < 60) return `${Math.round(sec)} s`;
+  if (sec < 3600) { const m = Math.floor(sec / 60), r = Math.round(sec % 60); return r ? `${m} min ${r} s` : `${m} min`; }
+  if (sec < 86400) { const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return m ? `${h} hr ${m} min` : `${h} hr`; }
+  const d = Math.round(sec / 86400); return `${d} day${d === 1 ? "" : "s"}`;
+}
+// A share of all votes (0-100) -> words. 70 -> "longer than 70% of votes".
+const pctText = p => p === 0 ? "the shortest in the record" : `longer than ${p}% of votes`;
 // Distances in feet: "130 ft", "0.4 mi", "12 mi".
 function fmtDist(ft) {
   if (ft < 1000) return `${fmt(Math.round(ft / 10) * 10)} ft`;
@@ -457,7 +463,7 @@ const FARTHEST_KEY = "plvt:show-votes-cast";
 const S = {
   fc: null, byId: new Map(), fields: [], bounds: null,
   farthest: FILTERS.includes(ls.get(FARTHEST_KEY)) ? ls.get(FARTHEST_KEY) : "all",
-  tally: new Map(),      // parcel -> { counts: [21], pace: [3], tier, lead, display }
+  tally: new Map(),      // parcel -> { counts: [21], timing: [timed, median seconds, median %], tier, lead, display }
   mine: new Map(),       // parcel -> { choice, d (feet or null; undefined while saving), out, tier }
   info: new Map(),       // parcel -> { neighborhood, ward, region }
   view: "all",           // all | mine
@@ -482,7 +488,7 @@ async function refreshTallies() {
   const n = ++tallyReq;
   const d = await rpc("lot_tallies", { farthest: S.farthest });
   if (n !== tallyReq) return false;   // a newer request (e.g. the filter changed) wins
-  S.tally = new Map((d.rows || []).map(([p, counts, pace, tier, lead, display]) => [p, { counts, pace, tier, lead, display }]));
+  S.tally = new Map((d.rows || []).map(([p, counts, timing, tier, lead, display]) => [p, { counts, timing, tier, lead, display }]));
   tallyAt = Date.now();
   return true;
 }
@@ -698,13 +704,15 @@ function drawCard(fresh) {
     const cls = [tr.key === t.tier ? "dec" : "", i + 1 > lim ? "off" : ""].filter(Boolean).join(" ");
     return `<span class="k ${cls}">${esc(tr.name(info))}</span><span class="v ${cls}">${countText(a)}</span>`;
   }).join("") : "";
-  const pace = t && sum(t.pace) ? PACE.map((q, i) => t.pace[i] ? `${fmt(t.pace[i])} ${q.label}` : "").filter(Boolean).join(" · ") : "";
+  const [timed, med, pct] = t?.timing || [0, null, null];
+  const timing = !t ? "" : !timed ? "each vote was the voter's first"
+    : `${timed > 1 ? "median " : ""}${fmtSecs(med)} after the voter's previous vote${pct === null ? "" : ` · ${pctText(pct)}`}`;
   el.innerHTML = `<div class="ch"><div class="ct"><b>${esc(p.a)}</b><div class="pin">Parcel ${esc(p.d)}</div>
       ${place ? `<div class="place">${esc(place)}</div>` : ""}</div>
       <button class="nx" data-close aria-label="Close">${ICON.close}</button></div>
     ${t ? `<div class="counts" aria-label="Votes by where they were cast">${rows}</div>
       ${t.tier ? "" : `<div class="note">None of these votes were cast close enough to show with "${esc(FILTER_LABEL[S.farthest])}".</div>`}
-      ${pace ? `<div class="pace" title="Time since each voter's previous vote: rapid under 10 s, steady 10 s to 2 min, unhurried over 2 min"><span class="k">Pace</span><span>${esc(pace)}</span></div>` : ""}`
+      ${timing ? `<div class="timing" title="Seconds between each vote and the same voter's previous vote, compared with every vote in the record"><span class="k">Timing</span><span>${esc(timing)}</span></div>` : ""}`
       : `<div class="counts"><span class="v none">No votes yet</span></div>`}
     <div class="mine" data-mine>${myVoteText(m, info)}</div>
     <details class="cx"${open ? " open" : ""}><summary>City record</summary>
@@ -831,10 +839,10 @@ function openHow() {
       <li><b>Grey</b> means two choices are tied in the group that decides.</li>
     </ul>
     <p><b>Show votes cast</b> (under More) narrows the map to votes cast that close or closer: for example, only votes cast in each lot's own neighborhood. It changes what you see, never the votes.</p>
-    <h2>Pace</h2>
-    <p>Each vote also records how long it came after the same voter's previous vote. A hundred votes in two minutes reads differently from a hundred over an afternoon. A lot's card shows its votes' pace:</p>
-    <ul>${PACE.map(q => `<li><b>${q.label[0].toUpperCase() + q.label.slice(1)}:</b> ${q.hint}.</li>`).join("")}</ul>
-    <p>Pace doesn't change a lot's color. It's there so everyone can see how the votes were cast.</p>
+    <h2>Timing</h2>
+    <p>Each vote also records how many seconds came between it and the same voter's previous vote, on any lot. A hundred votes in two minutes looks different from a hundred over an afternoon.</p>
+    <p>No cutoff decides what's fast or slow. Instead, a lot's card compares its votes with every vote in the record: "longer than 70% of votes" means 70% of all votes came sooner after the voter's previous one. A voter's first vote has nothing to compare, so it isn't counted. As votes come in, the comparison moves with them.</p>
+    <p>Timing doesn't change a lot's color. The downloads include every vote's seconds, so anyone can study it.</p>
     <h2>What's stored and what isn't</h2>
     <p>Stored with each vote:</p>
     <ul>
@@ -850,7 +858,7 @@ function openHow() {
     <p>The first time you open this page, your browser makes a random voter ID and keeps it. That ID holds your votes: one per lot, which you can change or clear any time. Tap your vote again to clear it; tap another color to change it.</p>
     <p>If you clear your browser, the ID goes with it. To keep it, open More, then Your voter card, and copy the link into your notes or an email to yourself, or screenshot the code. Opening that link on any device brings your votes back. Anyone with the link can vote as you, so keep it to yourself. Printed voter cards work the same way.</p>
     <h2>The rules may be tuned</h2>
-    <p>The distances, the pace thresholds, and checks for things like votes cast faster than anyone could travel between lots may be adjusted as votes come in. Because the record keeps measurements rather than verdicts, changing a rule changes how votes are shown, never the votes themselves.</p>
+    <p>The distances, and checks for things like votes cast faster than anyone could travel between lots may be adjusted as votes come in. Because the record keeps measurements rather than verdicts, changing a rule changes how votes are shown, never the votes themselves.</p>
   </div>`;
   p.hidden = false; p.scrollTop = 0; drawCard();
 }
@@ -860,10 +868,10 @@ function openData() {
   p.innerHTML = `<div class="in">${pageTop("Download the data")}
     <p>The record is public. Anyone can download it as a spreadsheet (CSV). Neither file has voter IDs or times of day, so no one's votes can be pieced together into where they went.</p>
     <div class="panel dl"><h2>Votes by lot</h2>
-      <p>One row per lot with votes: parcel, address, neighborhood, ward, and planning region; counts of each choice by where the votes were cast; pace; and how the lot shows on the map.</p>
+      <p>One row per lot with votes: parcel, address, neighborhood, ward, and planning region; counts of each choice by where the votes were cast; the median time between votes, compared with every vote; and how the lot shows on the map.</p>
       <button class="btn btn-dark" data-dl="lots">Download votes by lot</button></div>
     <div class="panel dl"><h2>Every vote</h2>
-      <p>One row per vote: the lot, the choice, where it was cast from, the distance in feet, its pace, and the date. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't.</p>
+      <p>One row per vote: the lot, the choice, where it was cast from, the distance in feet, the seconds since the voter's previous vote and how that compares with every vote, and the date. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't.</p>
       <button class="btn btn-dark" data-dl="votes">Download every vote</button></div>
   </div>`;
   p.hidden = false; p.scrollTop = 0; drawCard();
@@ -883,16 +891,16 @@ async function download(kind, btn) {
     if (kind === "lots") {
       const d = await rpc("export_lots", {});
       const head = ["parcel", "address", "neighborhood", "ward", "planning_region", "total_votes",
-        ...TIERS.flatMap(t => CHOICES.map(c => `${t.col}_${c.key}`)), "pace_rapid", "pace_steady", "pace_unhurried",
+        ...TIERS.flatMap(t => CHOICES.map(c => `${t.col}_${c.key}`)), "votes_with_timing", "median_seconds_since_voters_previous_vote", "median_longer_than_pct_of_votes",
         "closest_votes_cast", "leading_choice", "map_style"];
-      const rows = d.map(r => [r.parcel, r.address, r.neighborhood, r.ward, r.region, sum(r.counts), ...r.counts, ...r.pace,
+      const rows = d.map(r => [r.parcel, r.address, r.neighborhood, r.ward, r.region, sum(r.counts), ...r.counts, r.timed, r.median_seconds ?? "", r.median_pct ?? "",
         r.tier ? TK[r.tier].phrase() : "", choiceWord(r.lead), r.display || ""]);
       downloadFile(`public-land-votes-by-lot-${stamp()}.csv`, csv([head, ...rows]), "text/csv");
     } else {
       const d = await rpc("export_votes", {});
-      const head = ["parcel", "address", "neighborhood", "ward", "planning_region", "choice", "cast_from", "distance_ft", "pace", "date"];
-      const rows = d.map(([pin, addr, nb, wd, rg, choice, tier, dist, pace, date]) =>
-        [pin, addr, nb, wd, rg, choiceWord(choice), TK[tier]?.phrase({ neighborhood: "the lot's neighborhood", ward: "the lot's ward" }) ?? tier, dist, pace, date]);
+      const head = ["parcel", "address", "neighborhood", "ward", "planning_region", "choice", "cast_from", "distance_ft", "seconds_since_voters_previous_vote", "longer_than_pct_of_votes", "date"];
+      const rows = d.map(([pin, addr, nb, wd, rg, choice, tier, dist, secs, pct, date]) =>
+        [pin, addr, nb, wd, rg, choiceWord(choice), TK[tier]?.phrase({ neighborhood: "the lot's neighborhood", ward: "the lot's ward" }) ?? tier, dist, secs, pct, date]);
       downloadFile(`public-land-votes-${stamp()}.csv`, csv([head, ...rows]), "text/csv");
     }
   } catch { toast("The download didn't work. Try again in a moment."); }

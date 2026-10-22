@@ -1,37 +1,47 @@
 -- =====================================================================
--- Public Land Record: the database
+-- Public Land Voting Tool (proximity version): the database
 --
 -- A public, parcel-keyed record of what people want for the City of
 -- Cleveland's land bank lots: open space, development, or yard expansion.
 --
 -- No gates, just evidence. Anyone can vote on any lot. Each vote records
--- how it was cast (how far the voter was from the lot, and the timing),
--- and display rules decide how much it counts. Only raw measurements are
--- stored. Every threshold (what "on site" means, what looks like a burst)
--- lives in a query, a function argument, or a view, so it can change
--- without touching the record.
+-- how it was cast (how far the voter was from the lot, whether they were
+-- in the lot's neighborhood and ward, and the timing), and display rules
+-- decide how much it counts. Only measurements are stored. Every threshold
+-- (what "at the lot" means) lives in a function or view, so it can change
+-- without touching the record. Timing has no thresholds at all: each vote
+-- keeps the seconds since the voter's previous vote, and the public data
+-- compares it with every other vote in the record.
 --
--- Run this whole file in the Supabase SQL editor. It's safe to run again.
+-- Distances are in feet.
+--
+-- Run this whole file in the Supabase SQL editor. It's safe to run again,
+-- and it upgrades a database built from the Oct 21 version.
 --
 -- Tables (none readable by the public directly)
---   parcels       the city's land bank inventory with each lot's shape,
---                 synced hourly. Lots the city stops publishing are
---                 archived, never deleted, so their votes stay.
---   city_boundary the City of Cleveland (union of its wards). Votes cast
---                 from outside it are flagged, with no distance.
---   sync_settings where the lots and the boundary come from; last sync.
+--   parcels       the city's land bank inventory with each lot's shape and
+--                 its neighborhood, ward and planning region, synced
+--                 hourly. Lots the city stops publishing are archived,
+--                 never deleted, so their votes stay.
+--   places        the city's neighborhoods (SPAs), wards and design review
+--                 (planning) regions, from the city's own layers.
+--   city_boundary the City of Cleveland (union of its wards).
+--   sync_settings / place_sources   where all of that comes from.
 --   vote_events   every cast, change and clear, append-only. Never holds
---                 coordinates: only the rounded distance to the lot.
+--                 coordinates: only the rounded distance to the lot and
+--                 whether the voter was inside the lot's neighborhood and
+--                 ward.
 --   cards         printed voter cards: id and batch tag (provenance only).
 --
 -- What the public page can call
---   cast_vote(...)          the only way to write a vote
---   parcel_tallies(on_site_m) per-lot counts, on site and off site, and
---                           how each lot is drawn
---   my_votes(voter_id)      one voter's current votes (no timestamps)
+--   cast_vote(...)        the only way to write a vote
+--   lot_tallies(farthest) per-lot counts by where votes were cast, timing,
+--                         and how each lot is drawn
+--   my_votes(voter_id)    one voter's current votes (no timestamps)
+--   lot_info(parcel_id)   a lot's neighborhood, ward and planning region
+--   export_lots(), export_votes()   the public data, for CSV download
 --
--- For analysis (not public): current_votes, parcel_tally_rows(),
--- votes_flagged.
+-- For analysis (not public): current_votes, lot_tally_rows(), votes_flagged.
 -- =====================================================================
 
 create schema if not exists extensions;
@@ -59,6 +69,9 @@ create table if not exists parcels (
   last_seen   timestamptz not null default now(),
   archived_at timestamptz
 );
+alter table parcels add column if not exists neighborhood text;   -- names in places (kind 'neighborhood')
+alter table parcels add column if not exists ward text;
+alter table parcels add column if not exists region text;
 create index if not exists parcels_geom_idx on parcels using gist (geom);
 
 create table if not exists city_boundary (
@@ -86,6 +99,29 @@ insert into sync_settings (layer_url, id_field, address_field, category_field, b
   'https://services3.arcgis.com/dty2kHktVXHrqO8i/ArcGIS/rest/services/City_of_Cleveland_Wards_(2026)_view/FeatureServer/0')
 on conflict (id) do nothing;
 
+-- The city's boundary layers. name_field names each polygon; polygons sharing a name are merged.
+create table if not exists place_sources (
+  kind       text primary key check (kind in ('neighborhood', 'ward', 'region')),
+  url        text not null,
+  name_field text not null,
+  title_case boolean not null default false     -- "EUCLID CORRIDOR/BUCKEYE" -> "Euclid Corridor/Buckeye"
+);
+insert into place_sources (kind, url, name_field, title_case) values
+  ('neighborhood', 'https://services3.arcgis.com/dty2kHktVXHrqO8i/ArcGIS/rest/services/Cleveland_SPA_Neighborhoods_Salesforce/FeatureServer/0', 'SPANM', false),
+  ('ward',         'https://services3.arcgis.com/dty2kHktVXHrqO8i/ArcGIS/rest/services/City_of_Cleveland_Wards_(2026)_view/FeatureServer/0', 'NAME', false),
+  ('region',       'https://www.clevelandgis.org/arcgis/rest/services/AGOServices/PlanningWAB/MapServer/98', 'REGION', true)
+on conflict (kind) do nothing;
+
+create table if not exists places (
+  kind      text not null check (kind in ('neighborhood', 'ward', 'region')),
+  name      text not null,
+  geom      extensions.geometry(MultiPolygon, 4326) not null,
+  attrs     jsonb,                                -- the city's fields for each source polygon (e.g. a region's planner)
+  loaded_at timestamptz not null default now(),
+  primary key (kind, name)
+);
+create index if not exists places_geom_idx on places using gist (geom);
+
 create table if not exists cards (
   id         uuid primary key default gen_random_uuid(),
   batch_tag  text check (length(batch_tag) between 1 and 120),   -- "Glenville block club, Nov". Provenance only.
@@ -98,19 +134,40 @@ create table if not exists vote_events (
   parcel_id          text not null references parcels(id),
   choice             text check (choice in ('open_space', 'development', 'yard_expansion')),   -- null: the vote was cleared
   created_at         timestamptz not null default clock_timestamp(),
-  distance_m         int check (distance_m >= 0),        -- rounded by band; null: no location, or outside the city
-  outside_city       boolean not null default false,     -- cast from outside the city (distance not kept)
-  gps_accuracy_m     int check (gps_accuracy_m >= 0),
+  distance_ft        int check (distance_ft >= 0),   -- rounded by band; null: no location, or outside the city
+  outside_city       boolean not null default false, -- cast from outside the city (distance not kept)
+  gps_accuracy_m     int check (gps_accuracy_m >= 0),   -- as the phone reports it (meters)
   fix_age_s          int check (fix_age_s >= 0),
-  seconds_since_prev numeric(14, 3),                     -- since this voter's previous event (any lot)
-  implied_speed_ms   numeric(12, 2),                     -- centroid-to-centroid distance from that lot / seconds_since_prev
-  check (not (outside_city and distance_m is not null))
+  seconds_since_prev numeric(14, 3),                 -- since this voter's previous event (any lot)
+  implied_speed_ms   numeric(12, 2),                 -- centroid-to-centroid distance from that lot / seconds_since_prev
+  check (not (outside_city and distance_ft is not null))
 );
+
+-- Upgrading from the Oct 21 version: distances moved from meters to feet, and votes record whether
+-- they were cast inside the lot's neighborhood and ward.
+do $$
+declare n bigint;
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'vote_events' and column_name = 'distance_m') then
+    execute 'drop view if exists current_votes cascade';
+    execute 'drop view if exists votes_flagged cascade';
+    alter table vote_events rename column distance_m to distance_ft;
+    select count(*) into n from vote_events where distance_ft is not null;
+    if n > 0 then   -- convert stored meters to feet (the append-only trigger is paused for this one change)
+      alter table vote_events disable trigger vote_events_append_only;
+      update vote_events set distance_ft = round(distance_ft * 3.28084)::int where distance_ft is not null;
+      alter table vote_events enable trigger vote_events_append_only;
+    end if;
+  end if;
+end $$;
+alter table vote_events add column if not exists in_neighborhood boolean;   -- inside the lot's neighborhood; null: unknown
+alter table vote_events add column if not exists in_ward boolean;           -- inside the lot's ward; null: unknown
+
 create index if not exists vote_events_voter_idx  on vote_events (voter_id, created_at desc, id desc);
 create index if not exists vote_events_vp_idx     on vote_events (voter_id, parcel_id, created_at desc, id desc);
 create index if not exists vote_events_parcel_idx on vote_events (parcel_id);
 
--- Append-only. To erase test data on purpose:  set local app.erase_votes = 'yes'; delete from vote_events where ...;
+-- Append-only. To erase test data on purpose:  begin; set local app.erase_votes = 'yes'; delete from vote_events where ...; commit;
 create or replace function vote_events_append_only() returns trigger
 language plpgsql set search_path = public as $$
 begin
@@ -121,6 +178,11 @@ drop trigger if exists vote_events_append_only on vote_events;
 create trigger vote_events_append_only before update or delete on vote_events
   for each row execute function vote_events_append_only();
 
+-- Replaced by the functions below.
+drop function if exists parcel_tallies(int);
+drop function if exists parcel_tally_rows(int);
+drop function if exists round_distance(double precision);
+
 
 -- ---------------------------------------------------------------- helpers
 
@@ -129,23 +191,59 @@ language sql immutable set search_path = public as $$
   select upper(regexp_replace(coalesce(p, ''), '[^A-Za-z0-9]', '', 'g'))
 $$;
 
--- Distance bands: under 200 m to the nearest 10 m; 200 m to 2 km to the nearest 100 m; beyond, the nearest 1 km.
-create or replace function round_distance(d double precision) returns int
+-- Distance bands, in feet: under 1,000 ft to the nearest 10 ft; 1,000 ft to 2 miles to the nearest 100 ft;
+-- beyond that, to the nearest half mile.
+create or replace function round_distance_ft(ft double precision) returns int
 language sql immutable set search_path = public as $$
   select case
-    when d is null then null
-    when d < 200  then (round((d / 10)::numeric)   * 10)::int
-    when d < 2000 then (round((d / 100)::numeric)  * 100)::int
-    else               (round((d / 1000)::numeric) * 1000)::int
+    when ft is null then null
+    when ft < 1000  then (round((ft / 10)::numeric)   * 10)::int
+    when ft < 10560 then (round((ft / 100)::numeric)  * 100)::int
+    else                 (round((ft / 2640)::numeric) * 2640)::int
   end
 $$;
 
+-- Where a vote was cast from, nearest first. The rule, not stored anywhere; change it here.
+--   lot           within 200 ft of the lot          (on site)
+--   block         within 500 ft
+--   neighborhood  inside the lot's neighborhood (city SPA)
+--   ward          inside the lot's ward
+--   city          elsewhere in Cleveland
+--   outside       outside the city
+--   none          no location
+create or replace function vote_tier(distance_ft int, outside_city boolean, in_neighborhood boolean, in_ward boolean) returns text
+language sql immutable set search_path = public as $$
+  select case
+    when outside_city            then 'outside'
+    when distance_ft is null     then 'none'
+    when distance_ft <= 200      then 'lot'
+    when distance_ft <= 500      then 'block'
+    when in_neighborhood         then 'neighborhood'
+    when in_ward                 then 'ward'
+    else 'city'
+  end
+$$;
+create or replace function tier_rank(tier text) returns int
+language sql immutable set search_path = public as $$
+  select array_position(array['lot', 'block', 'neighborhood', 'ward', 'city', 'outside', 'none'], tier)
+$$;
+
+-- Upgrading from the first Oct 22 version: timing labels (rapid/steady/unhurried, from fixed cutoffs) are
+-- replaced by the raw seconds and a comparison with every other vote.
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'current_votes' and column_name = 'pace') then
+    execute 'drop view current_votes';
+  end if;
+end $$;
+drop function if exists vote_pace(numeric);
+drop function if exists lot_tally_rows(text);
+
 
 -- --------------------------------------------------------- casting a vote
--- The only way to write a vote. Coordinates come in, a rounded distance goes out to the record, and the
--- coordinates are dropped. Nothing here logs or raises with the coordinates in it, and the page calls this
--- with POST so they never sit in a URL. Errors come back as {"error": "<code>"}.
--- choice null clears the voter's vote on that lot.
+-- The only way to write a vote. Coordinates come in; a rounded distance and two yes/no answers (inside the
+-- lot's neighborhood? its ward?) go to the record; the coordinates are dropped. Nothing here logs or raises
+-- with the coordinates in it, and the page calls this with POST so they never sit in a URL.
+-- Errors come back as {"error": "<code>"}. choice null clears the voter's vote on that lot.
 create or replace function cast_vote(
   voter_id   uuid,
   parcel_id  text,
@@ -164,10 +262,15 @@ declare
   pid text := norm_parcel(parcel_id);
   pg  extensions.geography;
   pc  extensions.geography;
+  nb  text;
+  wd  text;
   located boolean;
   pt  extensions.geometry;
   inside boolean;
+  in_n boolean;
+  in_w boolean;
   dist int;
+  outside boolean;
   acc int;
   age int;
   cur text;
@@ -181,7 +284,7 @@ begin
   if choice is not null and choice not in ('open_space', 'development', 'yard_expansion') then
     return jsonb_build_object('error', 'bad_choice');
   end if;
-  select p.geom, p.center into pg, pc from parcels p where p.id = pid and p.status = 'public';
+  select p.geom, p.center, p.neighborhood, p.ward into pg, pc, nb, wd from parcels p where p.id = pid and p.status = 'public';
   if pg is null then return jsonb_build_object('error', 'parcel_not_found'); end if;
 
   -- One voter's events go in one at a time, so the time since their previous event is exact.
@@ -193,15 +296,18 @@ begin
     return jsonb_build_object('ok', true, 'choice', null, 'unchanged', true);   -- nothing to clear
   end if;
 
-  -- Where the voter was, reduced to a distance.
+  -- Where the voter was, reduced to a distance and two yes/no answers.
   located := lat is not null and lng is not null and lat between -90 and 90 and lng between -180 and 180;
+  outside := false;
   if located then
     pt := st_setsrid(st_makepoint(lng, lat), 4326);
     select st_covers(b.geom, pt) into inside from city_boundary b;
     if inside is false then
-      dist := null;
+      outside := true; in_n := false; in_w := false;
     else
-      dist := round_distance(st_distance(pg, pt::extensions.geography));
+      dist := round_distance_ft(st_distance(pg, pt::extensions.geography) * 3.28084);
+      select st_covers(x.geom, pt) into in_n from places x where x.kind = 'neighborhood' and x.name = nb;
+      select st_covers(x.geom, pt) into in_w from places x where x.kind = 'ward' and x.name = wd;
     end if;
     pt := null;
     acc := case when accuracy_m >= 0 then least(round(accuracy_m), 1000000)::int end;
@@ -219,20 +325,23 @@ begin
     secs := round(secs, 3);
   end if;
 
-  insert into vote_events (voter_id, parcel_id, choice, created_at, distance_m, outside_city, gps_accuracy_m, fix_age_s,
-                           seconds_since_prev, implied_speed_ms)
-  values (voter_id, pid, choice, t_now, dist, coalesce(located and inside is false, false), acc, age, secs, speed);
+  insert into vote_events (voter_id, parcel_id, choice, created_at, distance_ft, outside_city, in_neighborhood, in_ward,
+                           gps_accuracy_m, fix_age_s, seconds_since_prev, implied_speed_ms)
+  values (voter_id, pid, choice, t_now, dist, outside, in_n, in_w, acc, age, secs, speed);
 
-  return jsonb_build_object('ok', true, 'choice', choice, 'distance_m', dist,
-                            'outside_city', coalesce(located and inside is false, false));
+  return jsonb_build_object('ok', true, 'choice', choice, 'distance_ft', dist, 'outside_city', outside,
+                            'tier', vote_tier(dist, outside, in_n, in_w));
 end $$;
 
 
 -- ------------------------------------------------------------- reading it
 
--- Each voter's latest event per lot, without clears: the votes that stand.
+-- Each voter's latest event per lot, without clears: the votes that stand. A vote's distance is the
+-- distance of its latest cast.
 create or replace view current_votes with (security_invoker = true) as
-select e.voter_id, e.parcel_id, e.choice, e.created_at, e.distance_m, e.outside_city, e.gps_accuracy_m, e.fix_age_s
+select e.voter_id, e.parcel_id, e.choice, e.created_at, e.distance_ft, e.outside_city, e.gps_accuracy_m, e.fix_age_s,
+       e.in_neighborhood, e.in_ward, e.seconds_since_prev,
+       vote_tier(e.distance_ft, e.outside_city, e.in_neighborhood, e.in_ward) as tier
 from (
   select distinct on (v.voter_id, v.parcel_id) v.*
   from vote_events v
@@ -240,57 +349,118 @@ from (
 ) e
 where e.choice is not null;
 
--- Per-lot counts by choice, split at on_site_m (a vote with a distance at or under it is on site; no
--- distance or outside the city is off site), and how the lot is drawn:
---   solid    at least one on-site vote; colored by the leading on-site choice
---   hatched  only off-site votes; colored by the leading off-site choice
---   lead     the leading choice in the group that decides the color, or 'tie'
--- Lots with no votes aren't listed (they're drawn in the base style).
-create or replace function parcel_tally_rows(on_site_m int default 100)
-returns table (parcel_id text, on_open_space int, on_development int, on_yard_expansion int,
-               off_open_space int, off_development int, off_yard_expansion int, display text, lead text)
+-- Timing compared with the record: the share (0-100) of all current votes that came sooner after the voter's
+-- previous vote than `seconds`. 70 reads "took longer than 70% of votes". Votes without a previous vote (a
+-- voter's first) aren't in the comparison. No cutoffs: the comparison moves as votes come in.
+
+-- Per lot: counts by where the votes were cast (7 tiers, nearest first) and choice, timing, and how the
+-- lot is drawn. The nearest tier with votes decides the color; a tie there is grey.
+--   counts          21 numbers: for each tier (lot, block, neighborhood, ward, city, outside, none),
+--                   open space, development, yard expansion
+--   timed           how many of the lot's votes have a time since the voter's previous vote
+--   median_seconds  the median of those times
+--   median_pct      that median compared with every vote in the record (see above)
+--   tier            the nearest tier with votes, among those shown
+--   lead            its leading choice, or 'tie'
+--   display         'solid' (decided by votes at the lot), 'hatched' (by votes from farther away), or null
+--                   (this lot's votes are all farther than `farthest`)
+-- farthest: show only votes cast this close or closer ('lot', 'block', 'neighborhood', 'ward', 'city',
+-- or 'all'). It changes what's shown, never the record.
+create or replace function lot_tally_rows(farthest text default 'all')
+returns table (parcel_id text, counts int[], timed int, median_seconds numeric, median_pct int, tier text, lead text, display text)
 language sql stable security definer set search_path = public as $$
-  with c as (
-    select v.parcel_id,
-      count(*) filter (where v.distance_m <= on_site_m and v.choice = 'open_space')::int     as a1,
-      count(*) filter (where v.distance_m <= on_site_m and v.choice = 'development')::int    as a2,
-      count(*) filter (where v.distance_m <= on_site_m and v.choice = 'yard_expansion')::int as a3,
-      count(*) filter (where not coalesce(v.distance_m <= on_site_m, false) and v.choice = 'open_space')::int     as b1,
-      count(*) filter (where not coalesce(v.distance_m <= on_site_m, false) and v.choice = 'development')::int    as b2,
-      count(*) filter (where not coalesce(v.distance_m <= on_site_m, false) and v.choice = 'yard_expansion')::int as b3
-    from current_votes v
-    group by v.parcel_id
-  ), g as (
-    select c.*, case when a1 + a2 + a3 > 0 then array[a1, a2, a3] else array[b1, b2, b3] end as k from c
+  with cv as materialized (select * from current_votes),
+  lim as (select coalesce(tier_rank(farthest), 7) as r),
+  pop as (select array_agg(cv.seconds_since_prev) as a, count(*) as n from cv where cv.seconds_since_prev is not null),
+  g as (
+    select cv.parcel_id, tier_rank(cv.tier) as rk, cv.choice, count(*)::int as n
+    from cv group by 1, 2, 3
+  ),
+  lots as (
+    select cv.parcel_id,
+      count(cv.seconds_since_prev)::int as timed,
+      percentile_cont(0.5) within group (order by cv.seconds_since_prev) as med,
+      min(tier_rank(cv.tier)) filter (where tier_rank(cv.tier) <= (select r from lim)) as best
+    from cv group by cv.parcel_id
+  ),
+  x as (
+    select l.*,
+      (select array_agg(coalesce(g.n, 0) order by t.rk, c.i)
+         from generate_series(1, 7) t(rk)
+         cross join (values ('open_space', 1), ('development', 2), ('yard_expansion', 3)) c(choice, i)
+         left join g on g.parcel_id = l.parcel_id and g.rk = t.rk and g.choice = c.choice) as counts,
+      (select array_agg(coalesce(g.n, 0) order by c.i)
+         from (values ('open_space', 1), ('development', 2), ('yard_expansion', 3)) c(choice, i)
+         left join g on g.parcel_id = l.parcel_id and g.rk = l.best and g.choice = c.choice) as k
+    from lots l
   )
-  select g.parcel_id, a1, a2, a3, b1, b2, b3,
-    case when a1 + a2 + a3 > 0 then 'solid' else 'hatched' end,
+  select x.parcel_id, x.counts, x.timed, round(x.med::numeric, 1),
+    case when x.med is null or (select pop.n from pop) < 2 then null   -- nothing to compare with yet
+         else (select round(100.0 * count(*) filter (where s < x.med) / pop.n)::int from pop, unnest(pop.a) s group by pop.n) end,
+    (array['lot', 'block', 'neighborhood', 'ward', 'city', 'outside', 'none'])[x.best],
     case
-      when (select count(*) from unnest(k) x where x = (select max(y) from unnest(k) y)) > 1 then 'tie'
-      when k[1] >= k[2] and k[1] >= k[3] then 'open_space'
-      when k[2] >= k[3] then 'development'
+      when x.best is null then null
+      when (select count(*) from unnest(x.k) y where y = (select max(z) from unnest(x.k) z)) > 1 then 'tie'
+      when x.k[1] >= x.k[2] and x.k[1] >= x.k[3] then 'open_space'
+      when x.k[2] >= x.k[3] then 'development'
       else 'yard_expansion'
-    end
-  from g
+    end,
+    case when x.best is null then null when x.best = 1 then 'solid' else 'hatched' end
+  from x
 $$;
 
--- What the public map reads: one jsonb value (not rows, so there's no row cap), lots as
--- [parcel, on: open space, development, yard expansion, off: open space, development, yard expansion, display, lead].
-create or replace function parcel_tallies(on_site_m int default 100) returns jsonb
+-- What the public map reads: one jsonb value (no row cap).
+-- Lots as [parcel, counts, [timed, median_seconds, median_pct], tier, lead, display].
+create or replace function lot_tallies(farthest text default 'all') returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
-    'on_site_m', least(greatest(coalesce(on_site_m, 100), 0), 5000),
-    'rows', coalesce((select jsonb_agg(jsonb_build_array(t.parcel_id, t.on_open_space, t.on_development, t.on_yard_expansion,
-                        t.off_open_space, t.off_development, t.off_yard_expansion, t.display, t.lead))
-                      from parcel_tally_rows(least(greatest(coalesce(on_site_m, 100), 0), 5000)) t), '[]'::jsonb))
+    'farthest', case when tier_rank(farthest) between 1 and 5 then farthest else 'all' end,
+    'rows', coalesce((select jsonb_agg(jsonb_build_array(t.parcel_id, t.counts, jsonb_build_array(t.timed, t.median_seconds, t.median_pct),
+                        t.tier, t.lead, t.display))
+                      from lot_tally_rows(farthest) t), '[]'::jsonb))
 $$;
 
--- One voter's current votes: [[parcel, choice, distance_m, outside_city], ...]. No timestamps, so a voter ID
--- never turns into a trail of where and when someone was.
+-- One voter's current votes: [[parcel, choice, distance_ft, outside_city, tier], ...]. No timestamps, so a
+-- voter ID never turns into a trail of where and when someone was.
 create or replace function my_votes(voter_id uuid) returns jsonb
 language sql stable security definer set search_path = public as $$
-  select coalesce(jsonb_agg(jsonb_build_array(v.parcel_id, v.choice, v.distance_m, v.outside_city) order by v.parcel_id), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_array(v.parcel_id, v.choice, v.distance_ft, v.outside_city, v.tier) order by v.parcel_id), '[]'::jsonb)
   from current_votes v where v.voter_id = my_votes.voter_id
+$$;
+
+-- A lot's places: {"neighborhood": "Hough", "ward": "Ward 7", "region": "Euclid Corridor/Buckeye"}.
+create or replace function lot_info(parcel_id text) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('neighborhood', p.neighborhood, 'ward', p.ward, 'region', p.region)
+  from parcels p where p.id = norm_parcel(lot_info.parcel_id)
+$$;
+
+-- The public data, for CSV download. Never voter IDs, never a time of day.
+-- Lots with votes: {parcel, address, neighborhood, ward, region, counts[21], timed, median_seconds, median_pct,
+-- tier, lead, display}.
+create or replace function export_lots() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('parcel', p.pin, 'address', p.address, 'neighborhood', p.neighborhood,
+           'ward', p.ward, 'region', p.region, 'counts', t.counts, 'timed', t.timed, 'median_seconds', t.median_seconds,
+           'median_pct', t.median_pct, 'tier', t.tier, 'lead', t.lead, 'display', t.display) order by p.id), '[]'::jsonb)
+  from lot_tally_rows('all') t join parcels p on p.id = t.parcel_id
+$$;
+-- Every current vote: [parcel, address, neighborhood, ward, region, choice, tier, distance_ft, seconds_since_prev,
+-- seconds_pct, date], sorted by lot, then choice and tier (not by time). seconds_pct: the share of all timed
+-- votes that came sooner after the voter's previous vote. The date is the Cleveland calendar day.
+create or replace function export_votes() returns jsonb
+language sql stable security definer set search_path = public as $$
+  with v as (
+    select cv.*,
+      case when cv.seconds_since_prev is null or count(*) over (partition by cv.seconds_since_prev is null) < 2 then null else
+        round(100.0 * (rank() over (partition by cv.seconds_since_prev is null order by cv.seconds_since_prev) - 1)
+              / count(*) over (partition by cv.seconds_since_prev is null))::int end as seconds_pct
+    from current_votes cv
+  )
+  select coalesce(jsonb_agg(jsonb_build_array(p.pin, p.address, p.neighborhood, p.ward, p.region, v.choice, v.tier,
+           v.distance_ft, round(v.seconds_since_prev, 1), v.seconds_pct, to_char(v.created_at at time zone 'America/New_York', 'YYYY-MM-DD'))
+           order by p.id, v.choice, tier_rank(v.tier), v.distance_ft, v.seconds_since_prev), '[]'::jsonb)
+  from v join parcels p on p.id = v.parcel_id
 $$;
 
 
@@ -300,25 +470,25 @@ $$;
 create or replace view votes_flagged with (security_invoker = true) as
 with rules as (
   select
-    100            as on_site_m,       -- PLACEHOLDER: what counts as on site for these checks
-    40.0::numeric  as max_speed_ms,    -- PLACEHOLDER: faster than this between two lots is implausible travel
+    200            as on_site_ft,      -- PLACEHOLDER: what counts as at the lot for these checks
+    40.0::numeric  as max_speed_ms,    -- PLACEHOLDER: faster than this between two lots is implausible travel (m/s)
     30             as burst_votes,     -- PLACEHOLDER: this many events ...
     interval '10 minutes' as burst_window,   -- PLACEHOLDER: ... within this long is a burst
-    300            as max_fix_age_s,   -- PLACEHOLDER: an on-site vote from a location fix older than this
-    150            as max_accuracy_m   -- PLACEHOLDER: an on-site vote from a fix less precise than this
+    300            as max_fix_age_s,   -- PLACEHOLDER: an at-the-lot vote from a location fix older than this
+    150            as max_accuracy_m   -- PLACEHOLDER: an at-the-lot vote from a fix less precise than this (meters)
 ), w as (
   select e.*, count(*) over (partition by e.voter_id order by e.created_at
                              range between (select burst_window from rules) preceding and current row) as in_window
   from vote_events e
 )
-select w.id, w.voter_id, w.parcel_id, w.choice, w.created_at, w.distance_m, w.seconds_since_prev, w.implied_speed_ms,
+select w.id, w.voter_id, w.parcel_id, w.choice, w.created_at, w.distance_ft, w.seconds_since_prev, w.implied_speed_ms,
        w.gps_accuracy_m, w.fix_age_s, f.reason
 from w cross join rules r
 cross join lateral (values
-  (case when w.distance_m <= r.on_site_m and w.implied_speed_ms > r.max_speed_ms then 'implied_travel' end),
+  (case when w.distance_ft <= r.on_site_ft and w.implied_speed_ms > r.max_speed_ms then 'implied_travel' end),
   (case when w.in_window >= r.burst_votes then 'burst' end),
-  (case when w.distance_m <= r.on_site_m and w.fix_age_s > r.max_fix_age_s then 'stale_fix' end),
-  (case when w.distance_m <= r.on_site_m and w.gps_accuracy_m > r.max_accuracy_m then 'weak_fix' end)
+  (case when w.distance_ft <= r.on_site_ft and w.fix_age_s > r.max_fix_age_s then 'stale_fix' end),
+  (case when w.distance_ft <= r.on_site_ft and w.gps_accuracy_m > r.max_accuracy_m then 'weak_fix' end)
 ) f(reason)
 where f.reason is not null;
 
@@ -364,17 +534,69 @@ begin
   return jsonb_build_object('status', 'loaded', 'wards', n);
 end $$;
 
+-- Each lot's neighborhood, ward and region: the place containing its centroid (or, failing that, the one
+-- overlapping it most).
+create or replace function assign_places() returns int
+language plpgsql security definer set search_path = public, extensions as $$
+declare n int;
+begin
+  update parcels p set
+    neighborhood = coalesce(
+      (select x.name from places x where x.kind = 'neighborhood' and st_covers(x.geom, p.center::extensions.geometry) order by x.name limit 1),
+      (select x.name from places x where x.kind = 'neighborhood' and st_intersects(x.geom, p.geom::extensions.geometry)
+         order by st_area(st_intersection(x.geom, p.geom::extensions.geometry)) desc limit 1)),
+    ward = coalesce(
+      (select x.name from places x where x.kind = 'ward' and st_covers(x.geom, p.center::extensions.geometry) order by x.name limit 1),
+      (select x.name from places x where x.kind = 'ward' and st_intersects(x.geom, p.geom::extensions.geometry)
+         order by st_area(st_intersection(x.geom, p.geom::extensions.geometry)) desc limit 1)),
+    region = coalesce(
+      (select x.name from places x where x.kind = 'region' and st_covers(x.geom, p.center::extensions.geometry) order by x.name limit 1),
+      (select x.name from places x where x.kind = 'region' and st_intersects(x.geom, p.geom::extensions.geometry)
+         order by st_area(st_intersection(x.geom, p.geom::extensions.geometry)) desc limit 1))
+  where p.id is not null;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- Loads the neighborhoods, wards and regions from the city, then reassigns every lot.
+create or replace function sync_places() returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare s place_sources; n int; res jsonb := '{}'::jsonb;
+begin
+  for s in select * from place_sources order by kind loop
+    begin
+      insert into places (kind, name, geom, attrs, loaded_at)
+        select s.kind, x.nm, st_multi(st_union(x.g)), jsonb_agg(x.props), now()
+        from (
+          select case when s.title_case then initcap(trim(f #>> array['properties', s.name_field]))
+                      else trim(f #>> array['properties', s.name_field]) end as nm,
+                 to_multipolygon(f -> 'geometry') as g, f -> 'properties' as props
+          from jsonb_array_elements(city_get(s.url || '/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&geometryPrecision=6&f=geojson') -> 'features') f
+          where jsonb_typeof(f -> 'geometry') = 'object'
+        ) x
+        where x.nm is not null and x.nm <> '' and x.g is not null
+        group by x.nm
+      on conflict (kind, name) do update set geom = excluded.geom, attrs = excluded.attrs, loaded_at = now();
+      get diagnostics n = row_count;
+      res := res || jsonb_build_object(s.kind, n);
+    exception when others then
+      res := res || jsonb_build_object(s.kind, sqlerrm);
+    end;
+  end loop;
+  return res || jsonb_build_object('lots', assign_places());
+end $$;
+
 -- Brings parcels in line with the city's published inventory, shapes included. Checks the layer's last-edit
 -- date first and stops there if nothing changed. Lots the city no longer publishes are archived with their
 -- votes. Refuses (and changes nothing) if the city returns far fewer lots than expected; sync_city(true) overrides.
--- Also loads the city boundary if it's missing or more than 30 days old.
+-- Also reloads the city boundary and the neighborhoods, wards and regions when they're over 30 days old.
 create or replace function sync_city(p_force boolean default false)
 returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 declare
   s sync_settings; meta jsonb; edit bigint; cnt int; size int; off int := 0; q text;
   feats jsonb := '[]'::jsonb; seen parcels[]; ids text[];
-  got int; cur int; added int; relisted int; archived int; res jsonb; b jsonb;
+  got int; cur int; added int; relisted int; archived int; res jsonb; b jsonb; pl jsonb;
 begin
   select * into s from sync_settings;
   update sync_settings set last_run = now() where id;
@@ -382,11 +604,14 @@ begin
     if not exists (select 1 from city_boundary where loaded_at > now() - interval '30 days') then
       begin b := sync_boundary(); exception when others then b := jsonb_build_object('status', 'failed', 'error', sqlerrm); end;
     end if;
+    if not exists (select 1 from places where loaded_at > now() - interval '30 days') then
+      begin pl := sync_places(); exception when others then pl := jsonb_build_object('status', 'failed', 'error', sqlerrm); end;
+    end if;
 
     meta := city_get(s.layer_url || '?f=json');
     edit := coalesce(meta #>> '{editingInfo,dataLastEditDate}', meta #>> '{editingInfo,lastEditDate}')::bigint;
     if not p_force and edit is not null and edit = s.last_edit and s.last_ok is not null then
-      res := jsonb_build_object('status', 'unchanged', 'edited', edit, 'boundary', b);
+      res := jsonb_build_object('status', 'unchanged', 'edited', edit, 'boundary', b, 'places', pl);
       update sync_settings set last_result = res where id;
       return res;
     end if;
@@ -404,7 +629,7 @@ begin
 
     -- Every lot the city publishes now, as parcel rows (first one wins if a parcel number repeats).
     select array_agg(row(x.id, x.pin, x.address, x.category, x.g::extensions.geography, st_centroid(x.g)::extensions.geography,
-                         'public', now(), now(), null)::parcels), array_agg(x.id)
+                         'public', now(), now(), null, null, null, null)::parcels), array_agg(x.id)
       into seen, ids
       from (
         select distinct on (norm_parcel(f #>> array['properties', s.id_field]))
@@ -422,7 +647,7 @@ begin
     got := coalesce(cardinality(seen), 0);
     select count(*) into cur from parcels where status = 'public';
     if got = 0 or (not p_force and (got < cnt * 0.98 or got < cur / 2)) then
-      res := jsonb_build_object('status', 'refused', 'edited', edit, 'boundary', b, 'reason',
+      res := jsonb_build_object('status', 'refused', 'edited', edit, 'boundary', b, 'places', pl, 'reason',
         format('The city returned %s lots of %s expected, with %s on the list now. Nothing changed. Run sync_city(true) to accept it anyway.', got, cnt, cur));
       update sync_settings set last_result = res where id;
       return res;
@@ -440,13 +665,14 @@ begin
     update parcels p set status = 'archived', archived_at = now()
       where p.status = 'public' and not (p.id = any (ids));
     get diagnostics archived = row_count;
+    perform assign_places();
 
     res := jsonb_build_object('status', 'synced', 'edited', edit, 'public', got, 'added', added,
-                              'relisted', relisted, 'archived', archived, 'boundary', b);
+                              'relisted', relisted, 'archived', archived, 'boundary', b, 'places', pl);
     update sync_settings set last_edit = edit, last_ok = now(), last_result = res where id;
     return res;
   exception when others then
-    res := jsonb_build_object('status', 'failed', 'error', sqlerrm, 'boundary', b);
+    res := jsonb_build_object('status', 'failed', 'error', sqlerrm, 'boundary', b, 'places', pl);
     update sync_settings set last_result = res where id;
     return res;
   end;
@@ -454,33 +680,36 @@ end $$;
 
 
 -- ------------------------------------------------------------------ access
--- The public (anon) can't read or write any table or view. It can call three functions.
+-- The public (anon) can't read or write any table or view. It can call six functions.
 
 alter table parcels       enable row level security;
 alter table city_boundary enable row level security;
 alter table sync_settings enable row level security;
+alter table place_sources enable row level security;
+alter table places        enable row level security;
 alter table cards         enable row level security;
 alter table vote_events   enable row level security;
 
-revoke all on parcels, city_boundary, sync_settings, cards, vote_events from anon, authenticated;
+revoke all on parcels, city_boundary, sync_settings, place_sources, places, cards, vote_events from anon, authenticated;
 revoke all on current_votes, votes_flagged from anon, authenticated;
 
 do $$
 declare f regprocedure;
 begin
   for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'public'
-             and p.proname in ('cast_vote', 'parcel_tallies', 'parcel_tally_rows', 'my_votes', 'norm_parcel', 'round_distance',
-                               'city_get', 'to_multipolygon', 'sync_boundary', 'sync_city', 'vote_events_append_only') loop
+           where n.nspname = 'public' and p.prokind = 'f' loop
     execute format('revoke execute on function %s from public, anon, authenticated', f);
   end loop;
 end $$;
 grant execute on function cast_vote(uuid, text, text, double precision, double precision, double precision, double precision) to anon, authenticated;
-grant execute on function parcel_tallies(int) to anon, authenticated;
-grant execute on function my_votes(uuid)      to anon, authenticated;
+grant execute on function lot_tallies(text) to anon, authenticated;
+grant execute on function my_votes(uuid)    to anon, authenticated;
+grant execute on function lot_info(text)    to anon, authenticated;
+grant execute on function export_lots()     to anon, authenticated;
+grant execute on function export_votes()    to anon, authenticated;
 
 
--- ----------------------------------------- schedule the sync, run it once
+-- ----------------------------------------- schedule the sync
 
 do $$ begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
@@ -489,4 +718,5 @@ do $$ begin
 end $$;
 
 -- First load (16,000+ lot shapes): run   select sync_city();   by itself after this file.
+-- Neighborhoods, wards and regions:      select sync_places();   (sync_city also runs it monthly)
 -- How the last sync went:                select last_run, last_result from sync_settings;
