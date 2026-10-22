@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Public Land Voting Tool</title>
+<meta name="description" content="A public record of what people want for Cleveland's city-owned vacant land. Vote on any lot; votes cast at the lot drive the map.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='4' width='11' height='11' fill='%2300875F'/%3E%3Crect x='17' y='4' width='11' height='11' fill='%230068A6'/%3E%3Crect x='4' y='17' width='11' height='11' fill='%23E6A200'/%3E%3Crect x='17' y='17' width='11' height='11' fill='%23C9C7C2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+<link rel="preconnect" href="https://services3.arcgis.com" crossorigin>
+<style>
+:root{
+  --ink:#1D1A26; --muted:#67646C; --line:#DCDAD6; --mist:#F3F2F0; --paper:#FFFFFF;
+  --danger:#9E2F2A;
+  --font:"Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r-card:16px; --r-ctl:11px;
+  --shadow:0 1px 2px rgba(29,26,38,.07), 0 10px 30px rgba(29,26,38,.11);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--mist);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2.5px solid var(--ink);outline-offset:2px;border-radius:6px}
+[hidden]{display:none!important}
+.muted{color:var(--muted)}
+.sw{width:11px;height:11px;border-radius:3px;display:inline-block;flex:none}
+.sw.h{background:repeating-linear-gradient(135deg,var(--c) 0 2px,transparent 2px 5px)!important;box-shadow:inset 0 0 0 1.5px var(--c)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.45em;min-height:44px;padding:0 16px;border-radius:var(--r-ctl);
+  border:1.5px solid var(--line);background:var(--paper);font-weight:600;font-size:15px;white-space:nowrap;text-decoration:none;color:var(--ink)}
+.btn:hover{border-color:#bbb8b2}
+.btn-dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn-dark:hover{border-color:var(--ink)}
+.btn-sm{min-height:38px;font-size:14px;padding:0 12px}
+
+/* ---------- the map ---------- */
+#map{position:fixed;inset:0;background:#fff}
+.maplibregl-ctrl-attrib{font-size:10.5px}
+.dock{position:fixed;z-index:10;left:0;right:0;bottom:0;padding:0 10px calc(env(safe-area-inset-bottom,0px) + 10px);
+  display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.dock>*{pointer-events:auto;width:100%;max-width:440px}
+
+/* the bar: choices, your/everyone toggle, more */
+.vbar{display:flex;align-items:center;gap:6px;background:var(--paper);border-radius:18px;box-shadow:var(--shadow);padding:7px}
+.sq{flex:1 1 0;min-width:0;height:52px;border:0;border-radius:12px;background:var(--c);color:#fff;font-size:13px;font-weight:650;line-height:1.1;
+  display:grid;place-items:center;padding:0 4px;text-align:center;position:relative;text-shadow:0 1px 1px rgba(0,0,0,.2);
+  opacity:.4;filter:saturate(.75);transition:opacity .18s,filter .18s,transform .15s,box-shadow .15s;-webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.vbar.lit .sq{opacity:1;filter:none}
+.vbar.lit .sq:active{transform:scale(.95)}
+.vbar.lit .sq.cur{box-shadow:0 0 0 2.5px var(--paper),0 0 0 5px var(--ink);transform:translateY(-1px)}
+.sq.cur::after{content:"";position:absolute;top:6px;right:7px;width:7px;height:7px;border-radius:50%;background:#fff}
+.sq.busy{animation:pulse .9s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.7}}
+@media (max-width:420px){.vbar{gap:5px;padding:6px}.sq{font-size:12px;padding:0 2px;letter-spacing:-.01em}.ib{width:38px}}
+.ib{flex:none;width:42px;height:52px;border:0;border-radius:12px;background:transparent;display:grid;place-items:center;color:var(--ink);-webkit-tap-highlight-color:transparent}
+.ib:hover,.ib[aria-expanded="true"]{background:var(--mist)}
+.ib[aria-pressed="true"]{background:var(--ink);color:#fff}
+.ib svg{width:23px;height:23px}
+.shake{animation:shake .36s ease-in-out}
+@keyframes shake{0%,100%{translate:0}20%{translate:-6px}40%{translate:6px}60%{translate:-4px}80%{translate:3px}}
+
+/* the open lot: a strip above the bar on phones, a panel on wide screens */
+.card{background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:11px 12px 12px 14px;
+  max-height:calc(100dvh - 190px);overflow:auto;overscroll-behavior:contain}
+.card.in{animation:cardIn .2s ease-out}
+@keyframes cardIn{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+.ch{display:flex;align-items:flex-start;gap:10px}
+.ct{flex:1;min-width:0}
+.ct b{display:block;font-size:16.5px;line-height:1.25;letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ct .pin{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.nx{flex:none;width:40px;height:40px;border:0;border-radius:12px;background:var(--mist);display:grid;place-items:center;color:var(--ink)}
+.nx:hover{background:#e8e6e2}
+.nx svg{width:20px;height:20px}
+.counts{margin-top:8px;font-size:14px;display:grid;gap:3px}
+.counts .row{display:flex;gap:8px;align-items:baseline}
+.counts .k{flex:none;width:58px;color:var(--muted);font-size:13px}
+.counts .v{flex:1;min-width:0}
+.counts .v span{white-space:nowrap}
+.counts .v .sw{vertical-align:-1px;margin-right:4px}
+.counts .none{color:#a19da6}
+.mine{margin-top:6px;font-size:14px;display:flex;align-items:center;gap:7px;min-height:20px}
+.mine b{font-weight:650}
+.cx{border-top:1px solid var(--mist);margin-top:9px;padding-top:7px;font-size:13.5px}
+.cx summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);padding:3px 0}
+dl.city{display:grid;grid-template-columns:minmax(110px,42%) 1fr;gap:4px 10px;margin:6px 0 0;font-size:13px}
+dl.city dt{color:var(--muted)}
+dl.city dd{margin:0;word-break:break-word}
+dl.city dd.blank{color:#a19da6;font-style:italic}
+@media (min-width:900px){
+  .card{position:fixed;left:20px;top:20px;width:360px;max-width:none;max-height:calc(100dvh - 40px)}
+  .card.in{animation-name:cardInSide}
+  .maplibregl-ctrl-top-left{top:auto;bottom:0}
+}
+@keyframes cardInSide{from{transform:translateX(-12px);opacity:0}to{transform:none;opacity:1}}
+
+/* sheets above the bar: More, the location note, the card-switch question */
+.sheet{background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:6px;font-size:14.5px;
+  max-height:calc(100dvh - 120px);overflow:auto;animation:cardIn .16s ease-out}
+.sheet .pad{padding:10px 10px 8px}
+.sheet p{margin:0 0 10px;line-height:1.4}
+.sheet .acts{display:flex;gap:8px;flex-wrap:wrap}
+.key{display:grid;gap:5px;padding:10px 10px 12px;border-bottom:1px solid var(--mist);font-size:13.5px}
+.key .ks{display:flex;flex-wrap:wrap;gap:4px 14px}
+.key span{display:inline-flex;align-items:center;gap:6px}
+.key .muted{font-size:13px}
+.dist{padding:10px 10px 12px;border-bottom:1px solid var(--mist)}
+.dist label{display:flex;justify-content:space-between;font-weight:600;font-size:14px}
+.dist label output{font-variant-numeric:tabular-nums}
+.dist input{width:100%;margin:10px 0 0;accent-color:var(--ink)}
+.dist .ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:2px;padding:0 2px}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:0 10px;border:0;border-radius:10px;background:none;
+  text-align:left;text-decoration:none;font-weight:550;color:var(--ink)}
+button.mrow:hover{background:var(--mist)}
+
+.locate{position:fixed;z-index:9;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);width:44px;height:44px;border-radius:14px;border:0;
+  background:var(--paper);box-shadow:var(--shadow);display:grid;place-items:center;color:var(--ink)}
+.locate svg{width:21px;height:21px}
+.locate.on{color:#2F6FEB}
+@media (min-width:900px){.locate{right:20px;top:20px}}
+.zhint{position:fixed;z-index:11;left:50%;bottom:calc(var(--dock-h,80px) + 14px);transform:translate(-50%,6px);background:rgba(29,26,38,.86);color:#fff;
+  border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+.zhint.show{opacity:1;transform:translate(-50%,0)}
+.toast{position:fixed;z-index:800;left:50%;transform:translate(-50%,10px);opacity:0;pointer-events:none;max-width:min(420px,calc(100% - 24px));width:max-content;
+  background:var(--danger);color:#fff;border-radius:12px;padding:11px 16px;font-size:14.5px;line-height:1.3;box-shadow:0 8px 24px rgba(29,26,38,.25);
+  transition:opacity .18s,transform .18s;top:calc(env(safe-area-inset-top,0px) + 14px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* full pages over the map: your voter card, how votes count */
+.page{position:fixed;z-index:50;inset:0;background:var(--mist);overflow:auto;-webkit-overflow-scrolling:touch}
+.page .in{max-width:620px;margin:0 auto;padding:18px 18px 60px}
+.page .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.page h1{font-size:24px;letter-spacing:-.015em;margin:0}
+.page h2{font-size:17px;margin:26px 0 8px;letter-spacing:-.005em}
+.page p,.page li{max-width:62ch}
+.page p{margin:0 0 10px}
+.page ul{margin:0 0 10px;padding-left:20px}
+.page li{margin-bottom:5px}
+.panel{background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:18px}
+.vc{text-align:center}
+.vc .qr{width:min(260px,70vw);aspect-ratio:1;margin:4px auto 14px;display:grid;place-items:center}
+.vc .qr svg{width:100%;height:100%;display:block}
+.vc .btn{min-width:180px}
+.vc p{margin:14px auto 0;font-size:14.5px;color:var(--muted)}
+.vc .link{margin-top:10px;font-size:12.5px;color:var(--muted);word-break:break-all;font-variant-numeric:tabular-nums}
+
+.boot{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted);z-index:60;background:var(--mist)}
+.boot b{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="map" aria-label="Map of the city's land bank lots"></div>
+<button class="locate" data-locate aria-label="Center the map on me" hidden></button>
+<div class="zhint" data-zhint role="status"></div>
+<div class="dock" data-dock hidden>
+  <section class="card" data-card hidden aria-label="Selected lot"></section>
+  <div class="sheet" data-sheet hidden></div>
+  <nav class="vbar" data-bar aria-label="Vote"></nav>
+</div>
+<div class="page" data-page hidden></div>
+<div class="boot" data-boot><div><b>Public Land Voting Tool</b><span data-boot-msg>Loading the city's lots…</span></div></div>
+<div class="toast" id="toast" role="alert" aria-live="assertive"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+"use strict";
+/* =====================================================================
+   Public Land Voting Tool (proximity version)
+
+   One citywide map of the City of Cleveland's land bank lots. Anyone can
+   vote on any lot: open space, development, or yard expansion. Each vote
+   carries how it was cast (the voter's distance from the lot, rounded on
+   the server; coordinates are never stored) and display rules decide how
+   much it counts:
+     - a lot with at least one on-site vote is solid, in the leading on-site choice
+     - a lot with only off-site votes is hatched, in the leading off-site choice
+     - a lot with no votes is drawn plain; ties are grey
+   "On site" is a distance the viewer can change (25/50/100/250 m), passed to
+   the database as an argument, never stored.
+
+   The database (schema.sql) is reached only through three functions:
+   cast_vote, parcel_tallies, my_votes.
+   ===================================================================== */
+const CONFIG = {
+  parcelsUrl: "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/City_Landbank/FeatureServer/0",
+  idField: "parcelpin", addressField: "par_addr_all",
+  imagery: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  imageryAttribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics",
+  imageryOpacity: 0.5,       // 0 to 1: how strongly the aerial photo shows through the white background
+  labels: "https://tiles.openfreemap.org/styles/positron",   // street names, drawn on top of the photo
+  onSiteStops: [25, 50, 100, 250],   // the "on site within" choices, in meters
+  onSiteDefault: 100,
+  refreshSeconds: 20,        // how often the map picks up other people's votes
+  selectZoom: 15,            // lots can be selected (and voted on) only at this zoom or closer
+  meZoom: 17,                // zoom when the map opens on the voter
+  qrScript: "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js",
+  // The shared record. The publishable key is meant to be public; the database only allows three functions.
+  supabaseUrl: "https://seqjjbvfeosqpmwmivkt.supabase.co",
+  supabaseKey: "sb_publishable_Pzk-RIlE_EA6GRue4boSUg_lmtb4ZXc"
+};
+// The city's land bank programs. Keys are stored in the record; labels and colors can change.
+// Colors are the previous tool's.
+const CHOICES = [
+  { key: "open_space", label: "Open space", color: "#00875F" },
+  { key: "development", label: "Development", color: "#0068A6" },
+  { key: "yard_expansion", label: "Yard expansion", color: "#E6A200" }
+];
+const TIE = { key: "tie", label: "Tied", color: "#8A8781" };
+const CK = Object.fromEntries([...CHOICES, TIE].map(c => [c.key, c]));
+const lower = k => CK[k].label.toLowerCase();
+
+/* ---------------------------------------------------------------- helpers */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = n => new Intl.NumberFormat().format(n);
+const sum = a => a.reduce((x, y) => x + y, 0);
+const normId = v => String(v ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+const displayId = id => /^\d{8}$/.test(id) ? `${id.slice(0, 3)}-${id.slice(3, 5)}-${id.slice(5)}` : id;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ls = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } }
+};
+const isWide = () => matchMedia("(min-width: 900px)").matches;
+const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+let toastTimer = 0;
+function toast(text, ms = 4500) {
+  const el = $("#toast"); el.textContent = text;
+  el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), ms);
+}
+let pillTimer = 0;
+function pill(text, ms = 1800) {
+  const el = $("[data-zhint]"); el.textContent = text; el.classList.add("show");
+  clearTimeout(pillTimer); pillTimer = setTimeout(() => el.classList.remove("show"), ms);
+}
+function shake(el) { if (!el) return; el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16)); b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+const ICON = {
+  mine: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg>`,
+  more: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>`,
+  close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
+  locate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/><circle cx="12" cy="12" r="7.2"/></svg>`,
+  next: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`
+};
+
+/* ------------------------------------------------------- the record (RPC) */
+// Always POST: the location goes in the body, never in a URL that could be logged.
+async function rpc(fn, args) {
+  const res = await fetch(`${CONFIG.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: "POST", headers: { apikey: CONFIG.supabaseKey, "Content-Type": "application/json" }, body: JSON.stringify(args)
+  });
+  if (!res.ok) throw new Error(`The record answered ${res.status}`);
+  const d = await res.json();
+  if (d && d.error) throw Object.assign(new Error(d.error), { code: d.error });
+  return d;
+}
+
+/* ------------------------------------------------------------- identity
+   A random voter ID, made on first visit and kept in this browser. No personal data.
+   A card link (?card=<id>) carries an ID to another browser or back after clearing. */
+const VOTER_KEY = "plvt:voter-id";
+let voterId = null;
+function loadVoter() {
+  const v = ls.get(VOTER_KEY);
+  if (typeof v === "string" && UUID_RE.test(v)) return (voterId = v.toLowerCase());
+  voterId = uuid(); ls.set(VOTER_KEY, voterId); return voterId;
+}
+function setVoter(id) { voterId = id.toLowerCase(); ls.set(VOTER_KEY, voterId); }
+const pageBase = () => location.href.split(/[?#]/)[0];
+const cardLink = (id = voterId) => `${pageBase()}?card=${id}`;
+// Reads ?card= from the address, then takes it out of the address bar.
+function takeCardParam() {
+  const u = new URL(location.href), c = u.searchParams.get("card");
+  if (c === null) return null;
+  u.searchParams.delete("card");
+  history.replaceState(history.state, "", u.pathname + (u.search === "?" ? "" : u.search) + u.hash);
+  return UUID_RE.test(c.trim()) ? c.trim().toLowerCase() : "bad";
+}
+
+/* --------------------------------------------------------------- location
+   watchPosition while the page is open; the latest fix goes with each vote. */
+const LOC_KEY = "plvt:location";   // "asked" once the note has been answered with "Use my location", "later" for "Not now"
+let fix = null, watchId = null, locState = "off";   // off | asking | on | denied | unavailable
+let centeredOnMe = false;
+async function locPermission() {
+  try { return (await navigator.permissions.query({ name: "geolocation" })).state; } catch { return "unknown"; }
+}
+function startWatch() {
+  if (!("geolocation" in navigator)) { locState = "unavailable"; drawLocate(); return; }
+  if (watchId !== null) return;
+  locState = "asking"; drawLocate();
+  watchId = navigator.geolocation.watchPosition(p => {
+    fix = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, t: p.timestamp || Date.now() };
+    locState = "on"; drawLocate(); showMe();
+    if (!centeredOnMe) { centeredOnMe = true; centerOnMe(true); }
+  }, e => {
+    if (e.code === 1) { locState = "denied"; navigator.geolocation.clearWatch(watchId); watchId = null; fix = null; showMe(); }
+    else if (locState === "asking") locState = "unavailable";
+    drawLocate();
+  }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+}
+// What goes to cast_vote: the latest fix, or nothing.
+function fixArgs() {
+  if (!fix) return {};
+  return { lat: fix.lat, lng: fix.lng, accuracy_m: Math.round(fix.acc ?? 0), fix_age_s: Math.max(0, Math.round((Date.now() - fix.t) / 1000)) };
+}
+function centerOnMe(first) {
+  if (!gl || !fix) return;
+  const [[x0, y0], [x1, y1]] = S.bounds, pad = 0.01;
+  if (fix.lng < x0 - pad || fix.lng > x1 + pad || fix.lat < y0 - pad || fix.lat > y1 + pad) {   // not in Cleveland: stay on the city
+    if (!first) pill("You're outside Cleveland");
+    return;
+  }
+  if (first && S.sel) return;
+  gl.easeTo({ center: [fix.lng, fix.lat], zoom: Math.max(gl.getZoom(), CONFIG.meZoom), duration: first || calm() ? 0 : 500 });
+}
+function drawLocate() {
+  const b = $("[data-locate]"); if (!b) return;
+  b.innerHTML = ICON.locate; b.hidden = false; b.classList.toggle("on", locState === "on");
+}
+
+/* ------------------------------------------------------------- the lots
+   Read live from the city's land bank layer (all fields, for the parcel card), cached in IndexedDB
+   keyed by the layer's last-edit date. Same as the previous tool. */
+const PARCEL_FORMAT = 2;
+const idb = {
+  open() { return new Promise((ok, no) => { const r = indexedDB.open("plvt-proximity", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); },
+  async get(k) { try { const d = await this.open(); return await new Promise((ok, no) => { const q = d.transaction("kv").objectStore("kv").get(k); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }); } catch { return null; } },
+  async set(k, v) { try { const d = await this.open(); await new Promise((ok, no) => { const t = d.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = ok; t.onerror = () => no(t.error); }); } catch {} }
+};
+async function getJson(url) {
+  const res = await fetch(url); if (!res.ok) throw new Error(`The city's service answered ${res.status}`);
+  const d = await res.json(); if (d && d.error) throw new Error(d.error.message || "The city's service returned an error");
+  return d;
+}
+async function loadParcels() {
+  const L = CONFIG.parcelsUrl.replace(/\/+$/, "");
+  const [meta, { count }] = await Promise.all([getJson(`${L}?f=json`), getJson(`${L}/query?where=1%3D1&returnCountOnly=true&f=json`)]);
+  const edited = meta.editingInfo?.dataLastEditDate || meta.editingInfo?.lastEditDate || null;
+  const key = `v${PARCEL_FORMAT}|${L}|${edited}|${count}`;
+  const hit = await idb.get("parcels");
+  if (hit && hit.key === key) return hit.fc;
+  const oid = meta.objectIdField || "OBJECTID";
+  const fields = (meta.fields || []).filter(f => f.name !== oid && f.type !== "esriFieldTypeGeometry" && !/^shape/i.test(f.name)).map(f => ({ name: f.name, alias: f.alias || f.name }));
+  const size = Math.min(meta.maxRecordCount || 1000, 2000), offsets = [];
+  for (let o = 0; o < count; o += size) offsets.push(o);
+  const q = o => new URLSearchParams({ where: "1=1", outFields: "*", outSR: "4326", geometryPrecision: "6", orderByFields: oid, resultOffset: o, resultRecordCount: size, f: "geojson" });
+  const pages = await Promise.all(offsets.map(o => getJson(`${L}/query?${q(o)}`)));
+  const raw = pages.flatMap(p => p.features || []);
+  if (raw.length < count) throw new Error(`Only ${fmt(raw.length)} of ${fmt(count)} lots came back`);
+  const fc = buildParcels(raw);
+  fc.metadata = { edited, count: fc.features.length, fields: fields.length ? fields : Object.keys(raw[0]?.properties || {}).filter(k => k !== oid).map(n => ({ name: n, alias: n })) };
+  idb.set("parcels", { key, fc });
+  return fc;
+}
+// City records -> what the map needs: id, label, center point, plus the city's own fields for the parcel card.
+function buildParcels(raw) {
+  const items = [], seen = new Set();
+  for (const f of raw) {
+    const g = f.geometry; if (!g || (g.type !== "Polygon" && g.type !== "MultiPolygon")) continue;
+    const p = f.properties || {}, id = normId(p[CONFIG.idField]); if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const [cx, cy] = centroid(g), city = { ...p }; delete city.OBJECTID;
+    items.push({ addr: parseAddress(p[CONFIG.addressField]), f: { type: "Feature", geometry: g, properties: { id, d: displayId(String(p[CONFIG.idField]).trim()), a: "", cx: +cx.toFixed(6), cy: +cy.toFixed(6), city } } });
+  }
+  const cell = 0.002, grid = new Map(), gk = (x, y) => `${Math.floor(x / cell)},${Math.floor(y / cell)}`;
+  for (const it of items) if (it.addr?.full) { const k = gk(it.f.properties.cx, it.f.properties.cy); grid.has(k) ? grid.get(k).push(it) : grid.set(k, [it]); }
+  for (const it of items) {
+    const P = it.f.properties, a = it.addr;
+    if (a?.full) { P.a = a.full; continue; }
+    if (a?.street) { P.a = `Lot on ${a.street}`; continue; }
+    const kx = Math.cos(P.cy * Math.PI / 180), gx = Math.floor(P.cx / cell), gy = Math.floor(P.cy / cell);
+    let best = null, bd = Infinity;
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const b of grid.get(`${gx + dx},${gy + dy}`) || []) {
+      const q = b.f.properties, d = ((q.cx - P.cx) * kx) ** 2 + (q.cy - P.cy) ** 2; if (d < bd) { bd = d; best = b; }
+    }
+    const meters = best ? Math.sqrt(bd) * 111320 : Infinity;
+    P.a = meters < 400 ? `${meters < 60 ? "Next to" : "Near"} ${best.addr.full}` : `Parcel ${P.d}`;
+  }
+  return { type: "FeatureCollection", features: items.map(it => it.f) };
+}
+function titleCase(s) {
+  return String(s).toLowerCase().split(/\s+/).filter(Boolean).map(w =>
+    /^\d+(st|nd|rd|th)$/.test(w) ? w : /^\d/.test(w) || /^(n|s|e|w|ne|nw|se|sw)$/.test(w) ? w.toUpperCase()
+    : w.replace(/(^|['-])([a-z])/g, (_, x, y) => x + y.toUpperCase()).replace(/^Mc([a-z])/, (_, y) => "Mc" + y.toUpperCase())).join(" ");
+}
+function parseAddress(raw) {
+  const s = String(raw ?? "").split(",")[0].replace(/\s+/g, " ").trim();
+  if (!s || /^(null|none|n\/a|0)$/i.test(s)) return null;
+  const m = s.match(/^(\d+[A-Za-z]?(?:-\d+[A-Za-z]?)?)\s+(.+)$/);
+  if (m) return /^0+$/.test(m[1]) ? { street: titleCase(m[2]) } : { full: titleCase(`${m[1]} ${m[2]}`), street: titleCase(m[2]) };
+  if (/\d/.test(s) && !/[A-Za-z]{2,}/.test(s)) return null;
+  return { street: titleCase(s) };
+}
+function centroid(g) {
+  let x = 0, y = 0, n = 0;
+  for (const r of g.type === "Polygon" ? [g.coordinates[0]] : g.coordinates.map(p => p[0])) for (let i = 0; i < r.length - 1; i++) { x += r[i][0]; y += r[i][1]; n++; }
+  return n ? [x / n, y / n] : [0, 0];
+}
+
+/* ------------------------------------------------------------------ state */
+const ONSITE_KEY = "plvt:on-site-m";
+const S = {
+  fc: null, byId: new Map(), fields: [], bounds: null,
+  onSite: CONFIG.onSiteStops.includes(ls.get(ONSITE_KEY)) ? ls.get(ONSITE_KEY) : CONFIG.onSiteDefault,
+  tally: new Map(),      // parcel -> { on: [3], off: [3], display: "solid"|"hatched", lead }
+  mine: new Map(),       // parcel -> { choice, d (rounded m or null), out (outside city) }
+  view: "all",           // all | mine
+  sel: null, sheet: null, page: null
+};
+let gl = null;
+
+// A lot's look on the map: "s" solid or "h" hatched, and a color key (a choice or "tie"); null = plain.
+function lookOf(id) {
+  if (S.view === "mine") {
+    const m = S.mine.get(id); if (!m) return null;
+    return { st: onSite(m) ? "s" : "h", c: m.choice };
+  }
+  const t = S.tally.get(id); if (!t) return null;
+  return { st: t.display === "solid" ? "s" : "h", c: t.lead };
+}
+const onSite = m => typeof m.d === "number" && m.d <= S.onSite;
+
+/* ---------------------------------------------------------------- reading */
+let tallyAt = 0, tallyFor = null, tallyReq = 0;
+async function refreshTallies() {
+  const n = ++tallyReq, want = S.onSite;
+  const d = await rpc("parcel_tallies", { on_site_m: want });
+  if (n !== tallyReq) return false;   // a newer request (e.g. the slider moved) wins
+  S.tally = new Map((d.rows || []).map(([p, a, b, c, x, y, z, display, lead]) => [p, { on: [a, b, c], off: [x, y, z], display, lead }]));
+  tallyAt = Date.now(); tallyFor = want;
+  return true;
+}
+async function refreshMine() {
+  const id = voterId, d = await rpc("my_votes", { voter_id: id });
+  if (id !== voterId) return false;
+  // keep votes still being saved as they are on screen
+  const next = new Map(d.map(([p, choice, dist, out]) => [p, { choice, d: dist, out }]));
+  for (const [p, q] of pending) { if (q.choice) next.set(p, { choice: q.choice, d: undefined, out: false }); else next.delete(p); }
+  S.mine = next;
+  return true;
+}
+let liveTimer = 0;
+function startLive() {
+  clearInterval(liveTimer);
+  liveTimer = setInterval(async () => {
+    if (document.hidden || pending.size) return;
+    try { await Promise.all([refreshTallies(), refreshMine()]); paint(); drawCard(); } catch {}
+  }, CONFIG.refreshSeconds * 1000);
+}
+
+/* ----------------------------------------------------------------- voting
+   Tap a choice: vote for it. Tap your current choice again: clear. Another choice: change.
+   Shown at once; saved with the latest location fix. Saves on one lot go out in order. */
+const pending = new Map();   // parcel -> { choice } waiting to be saved
+const chains = new Map();    // parcel -> promise of the last save
+function vote(key) {
+  const id = S.sel;
+  if (!id) { pill(gl && gl.getZoom() < CONFIG.selectZoom ? "Zoom in and tap a lot" : "Tap a lot first"); shake($("[data-bar]")); return; }
+  const before = S.mine.get(id) || null;
+  const choice = before && before.choice === key ? null : key;
+  if (choice) S.mine.set(id, { choice, d: undefined, out: false }); else S.mine.delete(id);
+  pending.set(id, { choice });
+  drawBar(); drawCard(); paint();
+  const args = { voter_id: voterId, parcel_id: id, choice, ...fixArgs() };
+  const run = (chains.get(id) || Promise.resolve()).then(() => rpc("cast_vote", args)).then(r => {
+    if (pending.get(id)?.choice === choice) {
+      pending.delete(id);
+      if (r.choice) S.mine.set(id, { choice: r.choice, d: r.distance_m, out: !!r.outside_city });
+      else S.mine.delete(id);
+    }
+    return refreshTallies().catch(() => {});
+  }, e => {
+    if (pending.get(id)?.choice === choice) {
+      pending.delete(id);
+      if (before) S.mine.set(id, before); else S.mine.delete(id);
+    }
+    toast(e.code === "parcel_not_found" ? "The city no longer lists this lot." : "Your vote didn't save. Check your connection and try again.");
+  }).finally(() => { if (chains.get(id) === run) chains.delete(id); drawBar(); drawCard(); paint(); });
+  chains.set(id, run);
+}
+
+/* -------------------------------------------------------------------- map */
+function hatchImage(color) {
+  const n = 16, c = document.createElement("canvas"); c.width = c.height = n;
+  const x = c.getContext("2d");
+  x.fillStyle = "rgba(255,255,255,0.55)"; x.fillRect(0, 0, n, n);
+  x.strokeStyle = color; x.lineWidth = 3.2; x.lineCap = "square";
+  for (const o of [-n, 0, n]) { x.beginPath(); x.moveTo(o, n); x.lineTo(o + n, 0); x.stroke(); }
+  return { width: n, height: n, data: new Uint8Array(x.getImageData(0, 0, n, n).data.buffer) };
+}
+async function loadLabels() {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
+  try { const r = await fetch(CONFIG.labels, { signal: ctl.signal }); if (!r.ok) return null; const s = await r.json(); return s && s.version === 8 && Array.isArray(s.layers) ? s : null; }
+  catch { return null; } finally { clearTimeout(t); }
+}
+const EMPTY = { type: "FeatureCollection", features: [] };
+async function initMap() {
+  const lab = await loadLabels();
+  const sel = ["boolean", ["feature-state", "s"], false];
+  const colorOf = ["match", ["get", "c"], ...CHOICES.flatMap(c => [c.key, c.color]), TIE.color];
+  const W = (a, b, c) => ["interpolate", ["linear"], ["zoom"], 12, a, 15, b, 18, c];
+  const sources = {
+    photo: { type: "raster", tiles: [CONFIG.imagery], tileSize: 256, maxzoom: 19, attribution: CONFIG.imageryAttribution },
+    parcels: { type: "geojson", data: S.fc, promoteId: "id", tolerance: 0.2 },
+    pts: { type: "geojson", data: { type: "FeatureCollection", features: S.fc.features.map(f => ({ type: "Feature", properties: { id: f.properties.id }, geometry: { type: "Point", coordinates: [f.properties.cx, f.properties.cy] } })) } },
+    voted: { type: "geojson", data: EMPTY, tolerance: 0.2 },
+    vpts: { type: "geojson", data: EMPTY },
+    me: { type: "geojson", data: EMPTY }
+  };
+  const layers = [
+    { id: "paper", type: "background", paint: { "background-color": "#FFFFFF" } },
+    { id: "photo", type: "raster", source: "photo", paint: { "raster-opacity": CONFIG.imageryOpacity, "raster-saturation": -0.3 } },
+    // every lot: a faint white fill (tap target) and a white outline with a dark edge
+    { id: "lots-fill", type: "fill", source: "parcels", paint: { "fill-color": "#FFFFFF", "fill-opacity": 0.2 } },
+    { id: "lots-case", type: "line", source: "parcels", paint: { "line-color": "#4A4850", "line-opacity": 0.45, "line-width": W(0.6, 1.4, 2.8) } },
+    { id: "lots-line", type: "line", source: "parcels", paint: { "line-color": "#FFFFFF", "line-opacity": 0.9, "line-width": W(0.3, 0.8, 1.6) } },
+    // lots with votes: solid (on site) or hatched (off site only), in the leading choice's color
+    { id: "v-solid", type: "fill", source: "voted", filter: ["==", ["get", "st"], "s"], paint: { "fill-color": colorOf, "fill-opacity": 0.88 } },
+    { id: "v-hatch", type: "fill", source: "voted", filter: ["==", ["get", "st"], "h"], paint: { "fill-pattern": ["concat", "h-", ["get", "c"]] } },
+    { id: "v-edge", type: "line", source: "voted", paint: { "line-color": colorOf, "line-width": W(0.8, 1.6, 2.6) } },
+    // zoomed out, lots are dots: filled = on site, ring = off site only
+    { id: "dots", type: "circle", source: "pts", maxzoom: 15, paint: {
+        "circle-color": "#FFFFFF", "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 1.5, 14, 2.6],
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 13.6, 0.9, 14.6, 0], "circle-stroke-opacity": ["interpolate", ["linear"], ["zoom"], 13.6, 1, 14.6, 0],
+        "circle-stroke-color": "#6F6C74", "circle-stroke-width": 0.5 } },
+    { id: "vdots", type: "circle", source: "vpts", maxzoom: 15, paint: {
+        "circle-color": ["case", ["==", ["get", "st"], "s"], colorOf, "#FFFFFF"],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 14, 4.8],
+        "circle-stroke-color": ["case", ["==", ["get", "st"], "s"], "#FFFFFF", colorOf],
+        "circle-stroke-width": ["case", ["==", ["get", "st"], "s"], 1, 2],
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 13.6, 1, 14.6, 0], "circle-stroke-opacity": ["interpolate", ["linear"], ["zoom"], 13.6, 1, 14.6, 0] } },
+    { id: "sel-halo", type: "line", source: "parcels", paint: { "line-color": "#FFFFFF", "line-opacity": ["case", sel, 1, 0], "line-width": W(4, 6.5, 8) } },
+    { id: "sel-line", type: "line", source: "parcels", paint: { "line-color": "#D6336C", "line-opacity": ["case", sel, 1, 0], "line-width": W(2, 3.5, 4.5) } },
+    { id: "me-halo", type: "circle", source: "me", paint: { "circle-radius": 14, "circle-color": "#2F6FEB", "circle-opacity": 0.18 } },
+    { id: "me-dot", type: "circle", source: "me", paint: { "circle-radius": 6, "circle-color": "#2F6FEB", "circle-stroke-color": "#fff", "circle-stroke-width": 2 } }
+  ];
+  const style = { version: 8, sources, layers };
+  if (lab) {   // only the street names from the vector basemap, on top, so the photo stays readable
+    for (const [k, v] of Object.entries(lab.sources || {})) style.sources[k] = v;
+    style.glyphs = lab.glyphs; style.sprite = lab.sprite;
+    style.layers.push(...lab.layers.filter(l => l.type === "symbol"));
+  }
+  gl = new maplibregl.Map({ container: "map", style, bounds: S.bounds, fitBoundsOptions: { padding: 30 }, attributionControl: false,
+    dragRotate: false, pitchWithRotate: false, maxZoom: 19.5 });
+  gl.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
+  const fold = () => $(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");   // credits folded behind the (i)
+  gl.once("load", fold); gl.once("idle", fold); setTimeout(fold, 2500);
+  gl.touchZoomRotate.disableRotation();
+  gl.on("error", e => console.warn("Map:", e.error?.message || e));
+  gl.on("styleimagemissing", e => { const m = /^h-(.+)$/.exec(e.id); if (m && CK[m[1]] && !gl.hasImage(e.id)) gl.addImage(e.id, hatchImage(CK[m[1]].color), { pixelRatio: 2 }); });
+  gl.on("click", e => {
+    if (S.sheet === "more") return closeSheet();   // a tap on the map first folds More away
+    const exact = gl.queryRenderedFeatures(e.point, { layers: ["lots-fill"] });
+    const f = exact.length ? exact : gl.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], { layers: ["lots-fill", "dots"] });
+    const hit = f.find(x => x.layer.id === "lots-fill") || f[0];
+    if (!hit) return select(null);
+    if (gl.getZoom() < CONFIG.selectZoom) {   // too far out to pick one lot: zoom in on the tap instead
+      select(null); gl.easeTo({ center: e.lngLat, zoom: CONFIG.selectZoom + 1.5, duration: calm() ? 0 : 500 });
+      return pill("Zoom in to vote");
+    }
+    select(normId(hit.properties.id));
+  });
+  gl.on("mousemove", e => { const f = gl.queryRenderedFeatures(e.point, { layers: ["lots-fill", "dots"] }); gl.getCanvas().style.cursor = f.length && gl.getZoom() >= CONFIG.selectZoom ? "pointer" : ""; });
+  gl.on("dragstart", () => { centeredOnMe = true; });   // once the voter moves the map, a late location fix doesn't yank it
+  for (const c of [...CHOICES, TIE]) gl.addImage(`h-${c.key}`, hatchImage(c.color), { pixelRatio: 2 });
+  await new Promise(ok => { if (gl.isStyleLoaded()) return ok(); let done = false; const go = () => { if (!done) { done = true; ok(); } }; gl.once("load", go); gl.once("style.load", go); setTimeout(go, 8000); });
+}
+let paintKey = "";
+function paint() {
+  if (!gl || !gl.getSource("voted")) return;
+  const polys = [], pts = [];
+  const ids = S.view === "mine" ? S.mine.keys() : S.tally.keys();
+  for (const id of ids) {
+    const f = S.byId.get(id), look = lookOf(id); if (!f || !look) continue;
+    const props = { id, st: look.st, c: look.c };
+    polys.push({ type: "Feature", properties: props, geometry: f.geometry });
+    pts.push({ type: "Feature", properties: props, geometry: { type: "Point", coordinates: [f.properties.cx, f.properties.cy] } });
+  }
+  const key = polys.map(f => `${f.properties.id}${f.properties.st}${f.properties.c}`).join("|");
+  if (key === paintKey) return;   // nothing changed: don't re-tile
+  paintKey = key;
+  gl.getSource("voted").setData({ type: "FeatureCollection", features: polys });
+  gl.getSource("vpts").setData({ type: "FeatureCollection", features: pts });
+}
+function showMe() { gl?.getSource("me")?.setData(fix ? { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [fix.lng, fix.lat] } }] } : EMPTY); }
+function select(id) {
+  if (S.sel === id) return;
+  if (S.sel && gl) gl.setFeatureState({ source: "parcels", id: S.sel }, { s: false });
+  S.sel = id;
+  if (id && gl) gl.setFeatureState({ source: "parcels", id }, { s: true });
+  if (id) closeSheet();
+  drawBar(); drawCard(true);
+  if (id) keepInView(id);
+}
+// Keep the selected lot in view: right of the card on wide screens, above the card and bar on phones.
+function keepInView(id) {
+  if (!gl) return;
+  const p = S.byId.get(id).properties, pt = gl.project([p.cx, p.cy]), W = innerWidth, H = innerHeight, wide = isWide();
+  const card = $("[data-card]"), dockTop = (wide ? $("[data-bar]") : card.hidden ? $("[data-bar]") : card).getBoundingClientRect().top;
+  const r = wide ? { left: (!card.hidden ? card.getBoundingClientRect().right : 0) + 24, right: W - 70, top: 24, bottom: dockTop - 16 }
+    : { left: 20, right: W - 20, top: 70, bottom: dockTop - 16 };
+  if (pt.x > r.left && pt.x < r.right && pt.y > r.top && pt.y < r.bottom) return;
+  gl.easeTo({ center: [p.cx, p.cy], offset: [(r.left + r.right) / 2 - W / 2, (r.top + r.bottom) / 2 - H / 2], duration: calm() ? 0 : 350 });
+}
+
+/* ------------------------------------------------------------- the screen */
+function drawBar() {
+  const bar = $("[data-bar]"), cur = S.sel ? S.mine.get(S.sel)?.choice : null;
+  bar.classList.toggle("lit", !!S.sel);
+  bar.innerHTML = CHOICES.map((c, i) => `<button class="sq${cur === c.key ? " cur" : ""}${S.sel && pending.has(S.sel) && cur === c.key ? " busy" : ""}" data-choice="${c.key}" style="--c:${c.color}"
+      aria-pressed="${cur === c.key}" aria-label="${esc(c.label)}${cur === c.key ? " (your vote; tap to clear)" : ""}" title="${esc(c.label)} (${i + 1})">${esc(c.label)}</button>`).join("")
+    + `<button class="ib" data-view aria-pressed="${S.view === "mine"}" aria-label="${S.view === "mine" ? "Showing your votes. Show everyone's" : "Showing everyone's votes. Show yours"}" title="${S.view === "mine" ? "Your votes" : "Everyone's votes"}">${ICON.mine}</button>`
+    + `<button class="ib" data-more aria-label="More" aria-haspopup="true" aria-expanded="${S.sheet === "more"}">${ICON.more}</button>`;
+  setDockH();
+}
+function countText(a) {
+  const parts = CHOICES.map((c, i) => a[i] ? `<span><i class="sw" style="background:${c.color}"></i>${fmt(a[i])} ${esc(lower(c.key))}</span>` : "").filter(Boolean);
+  return parts.length ? parts.join(", ") : `<span class="none">none</span>`;
+}
+function myVoteText(m) {
+  if (!m) return "";
+  const c = CK[m.choice];
+  if (m.d === undefined) return `<i class="sw" style="background:${c.color}"></i><span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· saving…</span></span>`;
+  const on = onSite(m);
+  const where = m.out ? "from outside the city" : m.d === null ? "no location" : m.d === 0 ? "at the lot" : `${fmt(m.d)} m away`;
+  return `<i class="sw${on ? "" : " h"}" style="--c:${c.color};background:${c.color}"></i>
+    <span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· ${esc(where)} (${on ? "on site" : "off site"})</span></span>`;
+}
+function drawCard(fresh) {
+  const el = $("[data-card]");
+  if (!S.sel || S.page) { el.hidden = true; setDockH(); return; }
+  const f = S.byId.get(S.sel), p = f.properties, t = S.tally.get(S.sel), m = S.mine.get(S.sel);
+  const open = el.querySelector("details")?.open;
+  const val = v => v === null || v === undefined || String(v).trim() === "" ? null : typeof v === "number" ? fmt(v) : String(v);
+  el.innerHTML = `<div class="ch"><div class="ct"><b>${esc(p.a)}</b><div class="pin">Parcel ${esc(p.d)}</div></div>
+      <button class="nx" data-close aria-label="Close">${ICON.close}</button></div>
+    <div class="counts">${t ? `<div class="row"><span class="k">On site</span><span class="v">${countText(t.on)}</span></div>
+      <div class="row"><span class="k">Off site</span><span class="v">${countText(t.off)}</span></div>`
+      : `<div class="row"><span class="v none">No votes yet</span></div>`}</div>
+    <div class="mine" data-mine>${myVoteText(m)}</div>
+    <details class="cx"${open ? " open" : ""}><summary>City record</summary>
+      <dl class="city">${S.fields.map(fd => { const v = val(p.city[fd.name]); return `<dt>${esc(fd.alias)}</dt><dd class="${v === null ? "blank" : ""}">${v === null ? "Blank" : esc(v)}</dd>`; }).join("")}</dl></details>`;
+  if (fresh && el.hidden) { el.classList.remove("in"); void el.offsetWidth; el.classList.add("in"); }
+  el.hidden = false;
+  setDockH();
+}
+function setDockH() { const d = $("[data-dock]"); if (d) document.documentElement.style.setProperty("--dock-h", `${d.offsetHeight}px`); }
+
+/* sheets: More, the location note, the card question */
+function closeSheet() { S.sheet = null; const s = $("[data-sheet]"); s.hidden = true; s.innerHTML = ""; drawBar(); }
+function openMore() {
+  S.sheet = "more"; if (S.sel) select(null);
+  const s = $("[data-sheet]"), i = Math.max(0, CONFIG.onSiteStops.indexOf(S.onSite));
+  s.innerHTML = `<div class="key"><div class="ks">${CHOICES.map(c => `<span><i class="sw" style="background:${c.color}"></i>${esc(c.label)}</span>`).join("")}<span><i class="sw" style="background:${TIE.color}"></i>Tied</span></div>
+      <div class="ks muted"><span><i class="sw" style="background:#55525A"></i>Solid: voted at the lot</span><span><i class="sw h" style="--c:#55525A"></i>Hatched: voted from elsewhere</span></div></div>
+    <div class="dist"><label for="onsite">On site within <output data-onsite-out>${S.onSite} m</output></label>
+      <input id="onsite" type="range" min="0" max="${CONFIG.onSiteStops.length - 1}" step="1" value="${i}" data-onsite aria-valuetext="${S.onSite} meters">
+      <div class="ticks">${CONFIG.onSiteStops.map(m => `<span>${m}</span>`).join("")}</div></div>
+    ${locState !== "on" ? `<button class="mrow" data-use-loc>Use my location <span class="muted">${ICON.next}</span></button>` : ""}
+    <button class="mrow" data-go="card">Your voter card ${ICON.next}</button>
+    <button class="mrow" data-go="how">How votes count ${ICON.next}</button>`;
+  $$("svg", s).forEach(x => { x.setAttribute("width", "18"); x.setAttribute("height", "18"); });
+  s.hidden = false; drawBar();
+}
+function openLocNote() {
+  S.sheet = "loc";
+  const s = $("[data-sheet]");
+  s.innerHTML = `<div class="pad"><p>Your location shows whether you're at the lot. We keep the distance, not where you are.</p>
+    <div class="acts"><button class="btn btn-dark btn-sm" data-loc-yes>Use my location</button><button class="btn btn-sm" data-loc-no>Not now</button></div></div>`;
+  s.hidden = false; drawBar();
+}
+async function setOnSite(m) {
+  if (m === S.onSite) return;
+  S.onSite = m; ls.set(ONSITE_KEY, m);
+  const out = $("[data-onsite-out]"); if (out) out.textContent = `${m} m`;
+  $("[data-onsite]")?.setAttribute("aria-valuetext", `${m} meters`);
+  paint();   // your-votes view changes at once
+  try { if (await refreshTallies()) { paint(); drawCard(); } } catch { toast("Couldn't reach the record. Try again in a moment."); }
+}
+
+/* the card switch: a card link with a different ID on a device that already has votes */
+function askSwitch(newId) {
+  return new Promise(done => {
+    S.sheet = "switch";
+    const s = $("[data-sheet]");
+    s.innerHTML = `<div class="pad"><p><b>Switch to this voter card?</b></p>
+      <p>This device already has votes under another voter ID. After switching, they stay with that ID; save its link first if you want them back.</p>
+      <div class="acts"><button class="btn btn-dark btn-sm" data-sw-yes>Switch to the card</button><button class="btn btn-sm" data-sw-copy>Copy this device's link</button><button class="btn btn-sm" data-sw-no>Keep this device's</button></div></div>`;
+    s.hidden = false;
+    s.onclick = async e => {
+      if (e.target.closest("[data-sw-copy]")) { const ok = await copyText(cardLink()); e.target.closest("button").textContent = ok ? "Copied" : "Couldn't copy"; return; }
+      const yes = e.target.closest("[data-sw-yes]"), no = e.target.closest("[data-sw-no]");
+      if (!yes && !no) return;
+      s.onclick = null; closeSheet(); done(!!yes);
+    };
+  });
+}
+
+/* pages over the map */
+function closePage() { S.page = null; const p = $("[data-page]"); p.hidden = true; p.innerHTML = ""; drawCard(); if (location.hash) history.replaceState(history.state, "", location.href.split("#")[0]); }
+function pageTop(title) { return `<div class="top"><h1>${esc(title)}</h1><button class="nx" data-close-page aria-label="Back to the map">${ICON.close}</button></div>`; }
+let qrP = null;
+function loadQr() {
+  return qrP ||= new Promise((ok, no) => {
+    if (window.qrcode) return ok(window.qrcode);
+    const s = document.createElement("script"); s.src = CONFIG.qrScript; s.onload = () => ok(window.qrcode); s.onerror = () => { qrP = null; no(new Error("QR code library didn't load")); };
+    document.head.appendChild(s);
+  });
+}
+async function qrSvg(text) {
+  const qrcode = await loadQr(), q = qrcode(0, "M"); q.addData(text); q.make();
+  return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  try {
+    const t = Object.assign(document.createElement("textarea"), { value: text }); t.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(t); t.select(); const ok = document.execCommand("copy"); t.remove(); return ok;
+  } catch { return false; }
+}
+async function openCard() {
+  S.page = "card"; select(null); closeSheet();
+  const p = $("[data-page]"), link = cardLink();
+  p.innerHTML = `<div class="in">${pageTop("Your voter card")}<div class="panel vc">
+    <div class="qr" data-qr aria-label="QR code of your voter card link" role="img"></div>
+    <button class="btn btn-dark" data-copy>Copy link</button>
+    <p>Save this link or screenshot the code to get your votes back on any device. Anyone with it can vote as you.</p>
+    <div class="link">${esc(link)}</div></div></div>`;
+  p.hidden = false; p.scrollTop = 0; drawCard();
+  try { $("[data-qr]", p).innerHTML = await qrSvg(link); } catch { $("[data-qr]", p).innerHTML = `<span class="muted">The code didn't load. The link below works the same way.</span>`; }
+}
+function openHow() {
+  S.page = "how"; select(null); closeSheet();
+  const p = $("[data-page]");
+  p.innerHTML = `<div class="in">${pageTop("How votes count")}
+    <p>This is a public record of what people want for the City of Cleveland's vacant land: open space, development, or yard expansion. It's kept so decision-makers can be held to it. It goes with neighborhood meetings and conversations, not instead of them.</p>
+    <p>Anyone can vote on any lot. There are no codes, sign-ups, or limits. Instead, every vote keeps a record of how it was cast, and the map uses that record to decide how much the vote counts. These rules are public, and this page is all of them.</p>
+    <h2>Votes near the lot drive the map</h2>
+    <p>When you vote, your phone's location is turned into one number: how far you were from the lot. A vote cast within ${CONFIG.onSiteDefault} meters counts as <b>on site</b>. Anyone can change that distance for their own view under More.</p>
+    <ul>
+      <li>A lot with at least one on-site vote is <b>solid</b>, in the color of the choice with the most on-site votes.</li>
+      <li>A lot with only remote votes is <b>hatched</b>, in the color of the choice with the most remote votes.</li>
+      <li><b>Grey</b> means two choices are tied.</li>
+    </ul>
+    <h2>Remote votes are shown but don't override</h2>
+    <p>Votes cast from farther away, from outside the city, or without location are still recorded, and each lot's card shows them. They just can't outweigh the people who went to the lot: one on-site vote sets the color over any number of remote ones.</p>
+    <h2>What's stored and what isn't</h2>
+    <p>Stored with each vote:</p>
+    <ul>
+      <li>the lot, your choice, and the time;</li>
+      <li>your distance from the lot, rounded: to 10 m when you're within 200 m, to 100 m within 2 km, to 1 km beyond that, or only "outside the city";</li>
+      <li>how precise your phone said its location was, and how old that reading was;</li>
+      <li>the time since your previous vote, and how fast you'd have had to travel between those two lots.</li>
+    </ul>
+    <p>Not stored: where you were. Your location is used once to measure the distance and then thrown away. No name, email, phone number, or account. Every change and every cleared vote is kept, so the record can't be quietly rewritten.</p>
+    <p>The public map shows totals for each lot. Nobody can pull up a list of one person's votes.</p>
+    <h2>Your voter ID</h2>
+    <p>The first time you open this page, your browser makes a random voter ID and keeps it. That ID holds your votes: one per lot, which you can change or clear any time. Tap your vote again to clear it; tap another color to change it.</p>
+    <p>If you clear your browser, the ID goes with it. To keep it, open More, then Your voter card, and copy the link into your notes or an email to yourself, or screenshot the code. Opening that link on any device brings your votes back. Anyone with the link can vote as you, so keep it to yourself. Printed voter cards work the same way.</p>
+    <h2>The rules may be tuned</h2>
+    <p>The distance that counts as on site, and checks for things like votes cast faster than anyone could travel between lots, may be adjusted as votes come in. Because the record keeps measurements rather than verdicts, changing a rule changes how votes are shown, never the votes themselves.</p>
+  </div>`;
+  p.hidden = false; p.scrollTop = 0; drawCard();
+}
+function route() {
+  const h = location.hash.replace(/^#\/?/, "");
+  if (h === "card") return openCard();
+  if (h === "how") return openHow();
+  if (S.page) closePage();
+}
+
+/* ----------------------------------------------------------------- events */
+function wire() {
+  document.addEventListener("click", e => {
+    const t = e.target.closest("button, a"); if (!t) return;
+    if (t.matches("[data-choice]")) return vote(t.dataset.choice);
+    if (t.matches("[data-close]")) return select(null);
+    if (t.matches("[data-more]")) return S.sheet === "more" ? closeSheet() : openMore();
+    if (t.matches("[data-view]")) { S.view = S.view === "mine" ? "all" : "mine"; drawBar(); paint(); pill(S.view === "mine" ? "Your votes" : "Everyone's votes", 1200); return; }
+    if (t.matches("[data-go]")) { location.hash = `#/${t.dataset.go}`; return; }
+    if (t.matches("[data-close-page]")) return closePage();
+    if (t.matches("[data-use-loc]")) { closeSheet(); return locClick(); }
+    if (t.matches("[data-loc-yes]")) { ls.set(LOC_KEY, "asked"); closeSheet(); return startWatch(); }
+    if (t.matches("[data-loc-no]")) { ls.set(LOC_KEY, "later"); closeSheet(); return; }
+    if (t.matches("[data-locate]")) return locClick();
+    if (t.matches("[data-copy]")) {
+      copyText(cardLink()).then(ok => { t.textContent = ok ? "Copied" : "Couldn't copy: select the link below"; setTimeout(() => { if (t.isConnected) t.textContent = "Copy link"; }, 2200); });
+    }
+  });
+  document.addEventListener("input", e => {
+    if (e.target.matches("[data-onsite]")) setOnSite(CONFIG.onSiteStops[+e.target.value] ?? CONFIG.onSiteDefault);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.target.matches("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "Escape") { if (S.page) return closePage(); if (S.sheet && S.sheet !== "switch") return closeSheet(); if (S.sel) return select(null); }
+    if (!S.page && /^[1-3]$/.test(e.key) && S.sel) vote(CHOICES[+e.key - 1].key);
+  });
+  addEventListener("hashchange", route);
+  addEventListener("resize", setDockH);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Date.now() - tallyAt > CONFIG.refreshSeconds * 1000) Promise.all([refreshTallies(), refreshMine()]).then(() => { paint(); drawCard(); }).catch(() => {});
+  });
+}
+async function locClick() {
+  if (locState === "on") return centerOnMe(false);
+  if (locState === "denied" || (await locPermission()) === "denied") return toast("Location is off for this site. Turn it on in your browser's settings to vote on site.");
+  if ((await locPermission()) === "granted") { centeredOnMe = false; return startWatch(); }
+  openLocNote();
+}
+
+/* ------------------------------------------------------------------- boot */
+async function boot() {
+  loadVoter();
+  const card = takeCardParam();
+  wire();
+  let fc;
+  try { fc = await loadParcels(); }
+  catch (e) { $("[data-boot-msg]").textContent = `The city's lot list didn't load (${e.message}). Try again in a moment.`; return; }
+  S.fc = fc; S.fields = fc.metadata.fields;
+  let x0 = 180, y0 = 90, x1 = -180, y1 = -90;
+  for (const f of fc.features) { const p = f.properties; S.byId.set(p.id, f); x0 = Math.min(x0, p.cx); y0 = Math.min(y0, p.cy); x1 = Math.max(x1, p.cx); y1 = Math.max(y1, p.cy); }
+  S.bounds = [[x0, y0], [x1, y1]];
+
+  // A card link: adopt its ID. Ask first only if this device has votes under a different ID.
+  if (card === "bad") toast("That voter card link isn't complete. Check the link and open it again.");
+  else if (card && card !== voterId) {
+    let mine = [];
+    try { mine = await rpc("my_votes", { voter_id: voterId }); } catch {}
+    $("[data-dock]").hidden = false; $("[data-boot]").hidden = true;
+    drawBar();
+    if (!mine.length || await askSwitch(card)) { setVoter(card); pill("Voter card loaded", 1800); }
+  }
+
+  await initMap();
+  $("[data-boot]").hidden = true; $("[data-dock]").hidden = false;
+  drawBar(); drawLocate();
+  try { await Promise.all([refreshTallies(), refreshMine()]); } catch { toast("Couldn't reach the record. Votes will show when it's back."); }
+  paint();
+  startLive();
+  route();
+
+  // Location: already allowed -> start; never answered -> the one-sentence note first; declined -> leave it.
+  const perm = await locPermission();
+  if (perm === "granted" || (perm !== "denied" && ls.get(LOC_KEY) === "asked")) startWatch();   // seen the note before: no need to repeat it
+  else if (perm === "denied") { locState = "denied"; drawLocate(); }
+  else if (ls.get(LOC_KEY) !== "later" && !S.page && S.sheet !== "switch") openLocNote();
+}
+boot();
+
+</script>
+</body>
+</html>
