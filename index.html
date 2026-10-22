@@ -78,13 +78,18 @@ a{color:inherit}
 .nx{flex:none;width:40px;height:40px;border:0;border-radius:12px;background:var(--mist);display:grid;place-items:center;color:var(--ink)}
 .nx:hover{background:#e8e6e2}
 .nx svg{width:20px;height:20px}
-.counts{margin-top:8px;font-size:14px;display:grid;gap:3px}
-.counts .row{display:flex;gap:8px;align-items:baseline}
-.counts .k{flex:none;width:58px;color:var(--muted);font-size:13px}
-.counts .v{flex:1;min-width:0}
+.ct .place{font-size:13px;color:var(--muted);margin-top:1px}
+.counts{margin-top:9px;font-size:14px;display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;align-items:baseline}
+.counts .k{color:var(--muted);font-size:13px}
+.counts .k.dec{color:var(--ink);font-weight:650}
+.counts .off{opacity:.42}
+.counts .v{min-width:0}
 .counts .v span{white-space:nowrap}
 .counts .v .sw{vertical-align:-1px;margin-right:4px}
 .counts .none{color:#a19da6}
+.card .note{font-size:12.5px;color:var(--muted);margin-top:6px}
+.pace{margin-top:7px;font-size:13.5px;display:flex;gap:12px;align-items:baseline}
+.pace .k{color:var(--muted);font-size:13px}
 .mine{margin-top:6px;font-size:14px;display:flex;align-items:center;gap:7px;min-height:20px}
 .mine b{font-weight:650}
 .cx{border-top:1px solid var(--mist);margin-top:9px;padding-top:7px;font-size:13.5px}
@@ -110,11 +115,16 @@ dl.city dd.blank{color:#a19da6;font-style:italic}
 .key .ks{display:flex;flex-wrap:wrap;gap:4px 14px}
 .key span{display:inline-flex;align-items:center;gap:6px}
 .key .muted{font-size:13px}
-.dist{padding:10px 10px 12px;border-bottom:1px solid var(--mist)}
-.dist label{display:flex;justify-content:space-between;font-weight:600;font-size:14px}
-.dist label output{font-variant-numeric:tabular-nums}
-.dist input{width:100%;margin:10px 0 0;accent-color:var(--ink)}
-.dist .ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:2px;padding:0 2px}
+.filt{padding:10px 10px 12px;border-bottom:1px solid var(--mist)}
+.filt .fh{font-weight:600;font-size:14px;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{min-height:34px;padding:0 11px;border-radius:999px;border:1.5px solid var(--line);background:var(--paper);font-size:13.5px;font-weight:550}
+.chips button:hover{border-color:#bbb8b2}
+.chips button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.filt .fhint{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.35}
+.dl{margin-top:12px}
+.dl h2{margin:0 0 6px!important}
+.dl p{font-size:14.5px;color:var(--muted)}
 .mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:0 10px;border:0;border-radius:10px;background:none;
   text-align:left;text-decoration:none;font-weight:550;color:var(--ink)}
 button.mrow:hover{background:var(--mist)}
@@ -176,17 +186,20 @@ button.mrow:hover{background:var(--mist)}
 
    One citywide map of the City of Cleveland's land bank lots. Anyone can
    vote on any lot: open space, development, or yard expansion. Each vote
-   carries how it was cast (the voter's distance from the lot, rounded on
-   the server; coordinates are never stored) and display rules decide how
-   much it counts:
-     - a lot with at least one on-site vote is solid, in the leading on-site choice
-     - a lot with only off-site votes is hatched, in the leading off-site choice
-     - a lot with no votes is drawn plain; ties are grey
-   "On site" is a distance the viewer can change (25/50/100/250 m), passed to
-   the database as an argument, never stored.
+   carries where it was cast from: within 200 ft of the lot, within 500 ft,
+   inside the lot's neighborhood, inside its ward, elsewhere in the city,
+   outside the city, or with no location. The database works that out from
+   the voter's location and keeps only a rounded distance and two yes/no
+   answers; coordinates are never stored.
+     - On each lot, the votes cast closest to it set its color (the leading
+       choice in the nearest group that has votes; a tie is grey).
+     - Solid: that group is "at the lot". Hatched: it's farther away.
+   "Show votes cast" narrows what the map shows; it never changes the record.
+   Pace (time between a voter's votes) is shown on the lot's card and in the
+   downloads; it doesn't change colors.
 
-   The database (schema.sql) is reached only through three functions:
-   cast_vote, parcel_tallies, my_votes.
+   The database (schema.sql) is reached only through six functions:
+   cast_vote, lot_tallies, my_votes, lot_info, export_lots, export_votes.
    ===================================================================== */
 const CONFIG = {
   parcelsUrl: "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/City_Landbank/FeatureServer/0",
@@ -195,16 +208,44 @@ const CONFIG = {
   imageryAttribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics",
   imageryOpacity: 0.5,       // 0 to 1: how strongly the aerial photo shows through the white background
   labels: "https://tiles.openfreemap.org/styles/positron",   // street names, drawn on top of the photo
-  onSiteStops: [25, 50, 100, 250],   // the "on site within" choices, in meters
-  onSiteDefault: 100,
   refreshSeconds: 20,        // how often the map picks up other people's votes
   selectZoom: 15,            // lots can be selected (and voted on) only at this zoom or closer
   meZoom: 17,                // zoom when the map opens on the voter
   qrScript: "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js",
-  // The shared record. The publishable key is meant to be public; the database only allows three functions.
+  title: "Public Land Voting Tool",
+  shareText: "What should Cleveland's city-owned vacant lots become? See what people want, and vote on any lot.",
+  // The shared record. The publishable key is meant to be public; the database only allows six functions.
   supabaseUrl: "https://seqjjbvfeosqpmwmivkt.supabase.co",
   supabaseKey: "sb_publishable_Pzk-RIlE_EA6GRue4boSUg_lmtb4ZXc"
 };
+// Where a vote was cast from, nearest first. Same keys and order as vote_tier() in schema.sql; the 200 and
+// 500 ft lines are set there. info = the lot's places from lot_info().
+const TIERS = [
+  { key: "lot",          name: () => "At the lot",             phrase: () => "at the lot",            col: "at_lot",            filter: "At the lot",          hint: "within 200 ft" },
+  { key: "block",        name: () => "On the block",           phrase: () => "on the block",          col: "on_block",          filter: "On the block",        hint: "within 500 ft" },
+  { key: "neighborhood", name: i => i?.neighborhood ? `In ${i.neighborhood}` : "In the neighborhood", phrase: i => i?.neighborhood ? `in ${i.neighborhood}` : "in the neighborhood",
+                         col: "in_neighborhood", filter: "In the neighborhood", hint: "the lot's city neighborhood" },
+  { key: "ward",         name: i => i?.ward ? `In ${i.ward}` : "In the ward", phrase: i => i?.ward ? `in ${i.ward}` : "in the ward",
+                         col: "in_ward", filter: "In the ward", hint: "the lot's council ward" },
+  { key: "city",         name: () => "Elsewhere in Cleveland", phrase: () => "elsewhere in Cleveland", col: "elsewhere_in_city", filter: "In Cleveland" },
+  { key: "outside",      name: () => "Outside Cleveland",      phrase: () => "outside Cleveland",     col: "outside_city" },
+  { key: "none",         name: () => "No location",            phrase: () => "no location",           col: "no_location" }
+];
+const TK = Object.fromEntries(TIERS.map((t, i) => [t.key, { ...t, rank: i + 1 }]));
+const FILTERS = ["lot", "block", "neighborhood", "ward", "city", "all"];   // "Show votes cast" choices
+const rankOf = k => k === "all" ? 7 : TK[k]?.rank ?? 7;
+// Pace: time since the voter's previous vote. Same as vote_pace() in schema.sql.
+const PACE = [
+  { key: "rapid", label: "rapid", hint: "under 10 seconds after the voter's previous vote" },
+  { key: "steady", label: "steady", hint: "10 seconds to 2 minutes" },
+  { key: "unhurried", label: "unhurried", hint: "over 2 minutes, or the voter's first vote" }
+];
+// Distances in feet: "130 ft", "0.4 mi", "12 mi".
+function fmtDist(ft) {
+  if (ft < 1000) return `${fmt(Math.round(ft / 10) * 10)} ft`;
+  const mi = ft / 5280;
+  return `${mi < 10 ? mi.toFixed(1) : fmt(Math.round(mi))} mi`;
+}
 // The city's land bank programs. Keys are stored in the record; labels and colors can change.
 // Colors are the previous tool's.
 const CHOICES = [
@@ -412,12 +453,13 @@ function centroid(g) {
 }
 
 /* ------------------------------------------------------------------ state */
-const ONSITE_KEY = "plvt:on-site-m";
+const FARTHEST_KEY = "plvt:show-votes-cast";
 const S = {
   fc: null, byId: new Map(), fields: [], bounds: null,
-  onSite: CONFIG.onSiteStops.includes(ls.get(ONSITE_KEY)) ? ls.get(ONSITE_KEY) : CONFIG.onSiteDefault,
-  tally: new Map(),      // parcel -> { on: [3], off: [3], display: "solid"|"hatched", lead }
-  mine: new Map(),       // parcel -> { choice, d (rounded m or null), out (outside city) }
+  farthest: FILTERS.includes(ls.get(FARTHEST_KEY)) ? ls.get(FARTHEST_KEY) : "all",
+  tally: new Map(),      // parcel -> { counts: [21], pace: [3], tier, lead, display }
+  mine: new Map(),       // parcel -> { choice, d (feet or null; undefined while saving), out, tier }
+  info: new Map(),       // parcel -> { neighborhood, ward, region }
   view: "all",           // all | mine
   sel: null, sheet: null, page: null
 };
@@ -427,31 +469,35 @@ let gl = null;
 function lookOf(id) {
   if (S.view === "mine") {
     const m = S.mine.get(id); if (!m) return null;
-    return { st: onSite(m) ? "s" : "h", c: m.choice };
+    if (m.tier && rankOf(m.tier) > rankOf(S.farthest)) return null;
+    return { st: m.tier === "lot" ? "s" : "h", c: m.choice };
   }
-  const t = S.tally.get(id); if (!t) return null;
+  const t = S.tally.get(id); if (!t || !t.display) return null;
   return { st: t.display === "solid" ? "s" : "h", c: t.lead };
 }
-const onSite = m => typeof m.d === "number" && m.d <= S.onSite;
 
 /* ---------------------------------------------------------------- reading */
-let tallyAt = 0, tallyFor = null, tallyReq = 0;
+let tallyAt = 0, tallyReq = 0;
 async function refreshTallies() {
-  const n = ++tallyReq, want = S.onSite;
-  const d = await rpc("parcel_tallies", { on_site_m: want });
-  if (n !== tallyReq) return false;   // a newer request (e.g. the slider moved) wins
-  S.tally = new Map((d.rows || []).map(([p, a, b, c, x, y, z, display, lead]) => [p, { on: [a, b, c], off: [x, y, z], display, lead }]));
-  tallyAt = Date.now(); tallyFor = want;
+  const n = ++tallyReq;
+  const d = await rpc("lot_tallies", { farthest: S.farthest });
+  if (n !== tallyReq) return false;   // a newer request (e.g. the filter changed) wins
+  S.tally = new Map((d.rows || []).map(([p, counts, pace, tier, lead, display]) => [p, { counts, pace, tier, lead, display }]));
+  tallyAt = Date.now();
   return true;
 }
 async function refreshMine() {
   const id = voterId, d = await rpc("my_votes", { voter_id: id });
   if (id !== voterId) return false;
   // keep votes still being saved as they are on screen
-  const next = new Map(d.map(([p, choice, dist, out]) => [p, { choice, d: dist, out }]));
-  for (const [p, q] of pending) { if (q.choice) next.set(p, { choice: q.choice, d: undefined, out: false }); else next.delete(p); }
+  const next = new Map(d.map(([p, choice, dist, out, tier]) => [p, { choice, d: dist, out, tier }]));
+  for (const [p, q] of pending) { if (q.choice) next.set(p, { choice: q.choice, d: undefined, out: false, tier: null }); else next.delete(p); }
   S.mine = next;
   return true;
+}
+async function loadInfo(id) {
+  if (S.info.has(id)) return;
+  try { const i = await rpc("lot_info", { parcel_id: id }); S.info.set(id, i || {}); if (S.sel === id) drawCard(); } catch {}
 }
 let liveTimer = 0;
 function startLive() {
@@ -472,14 +518,14 @@ function vote(key) {
   if (!id) { pill(gl && gl.getZoom() < CONFIG.selectZoom ? "Zoom in and tap a lot" : "Tap a lot first"); shake($("[data-bar]")); return; }
   const before = S.mine.get(id) || null;
   const choice = before && before.choice === key ? null : key;
-  if (choice) S.mine.set(id, { choice, d: undefined, out: false }); else S.mine.delete(id);
+  if (choice) S.mine.set(id, { choice, d: undefined, out: false, tier: null }); else S.mine.delete(id);
   pending.set(id, { choice });
   drawBar(); drawCard(); paint();
   const args = { voter_id: voterId, parcel_id: id, choice, ...fixArgs() };
   const run = (chains.get(id) || Promise.resolve()).then(() => rpc("cast_vote", args)).then(r => {
     if (pending.get(id)?.choice === choice) {
       pending.delete(id);
-      if (r.choice) S.mine.set(id, { choice: r.choice, d: r.distance_m, out: !!r.outside_city });
+      if (r.choice) S.mine.set(id, { choice: r.choice, d: r.distance_ft ?? null, out: !!r.outside_city, tier: r.tier });
       else S.mine.delete(id);
     }
     return refreshTallies().catch(() => {});
@@ -602,7 +648,7 @@ function select(id) {
   if (S.sel && gl) gl.setFeatureState({ source: "parcels", id: S.sel }, { s: false });
   S.sel = id;
   if (id && gl) gl.setFeatureState({ source: "parcels", id }, { s: true });
-  if (id) closeSheet();
+  if (id) { closeSheet(); loadInfo(id); }
   drawBar(); drawCard(true);
   if (id) keepInView(id);
 }
@@ -631,47 +677,59 @@ function countText(a) {
   const parts = CHOICES.map((c, i) => a[i] ? `<span><i class="sw" style="background:${c.color}"></i>${fmt(a[i])} ${esc(lower(c.key))}</span>` : "").filter(Boolean);
   return parts.length ? parts.join(", ") : `<span class="none">none</span>`;
 }
-function myVoteText(m) {
+function myVoteText(m, info) {
   if (!m) return "";
   const c = CK[m.choice];
-  if (m.d === undefined) return `<i class="sw" style="background:${c.color}"></i><span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· saving…</span></span>`;
-  const on = onSite(m);
-  const where = m.out ? "from outside the city" : m.d === null ? "no location" : m.d === 0 ? "at the lot" : `${fmt(m.d)} m away`;
-  return `<i class="sw${on ? "" : " h"}" style="--c:${c.color};background:${c.color}"></i>
-    <span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· ${esc(where)} (${on ? "on site" : "off site"})</span></span>`;
+  if (m.d === undefined || !m.tier) return `<i class="sw" style="background:${c.color}"></i><span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· saving…</span></span>`;
+  const t = TK[m.tier], where = m.d === null || m.d === 0 ? t.phrase(info) : `${fmtDist(m.d)} away, ${t.phrase(info)}`;
+  return `<i class="sw${m.tier === "lot" ? "" : " h"}" style="--c:${c.color};background:${c.color}"></i>
+    <span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· ${esc(m.out ? "from outside Cleveland" : where)}</span></span>`;
 }
 function drawCard(fresh) {
   const el = $("[data-card]");
   if (!S.sel || S.page) { el.hidden = true; setDockH(); return; }
-  const f = S.byId.get(S.sel), p = f.properties, t = S.tally.get(S.sel), m = S.mine.get(S.sel);
+  const f = S.byId.get(S.sel), p = f.properties, t = S.tally.get(S.sel), m = S.mine.get(S.sel), info = S.info.get(S.sel);
   const open = el.querySelector("details")?.open;
   const val = v => v === null || v === undefined || String(v).trim() === "" ? null : typeof v === "number" ? fmt(v) : String(v);
-  el.innerHTML = `<div class="ch"><div class="ct"><b>${esc(p.a)}</b><div class="pin">Parcel ${esc(p.d)}</div></div>
+  const place = info ? [info.neighborhood, info.ward, info.region && `${info.region} region`].filter(Boolean).join(" · ") : "";
+  const lim = rankOf(S.farthest);
+  const rows = t ? TIERS.map((tr, i) => {
+    const a = t.counts.slice(i * 3, i * 3 + 3); if (!sum(a)) return "";
+    const cls = [tr.key === t.tier ? "dec" : "", i + 1 > lim ? "off" : ""].filter(Boolean).join(" ");
+    return `<span class="k ${cls}">${esc(tr.name(info))}</span><span class="v ${cls}">${countText(a)}</span>`;
+  }).join("") : "";
+  const pace = t && sum(t.pace) ? PACE.map((q, i) => t.pace[i] ? `${fmt(t.pace[i])} ${q.label}` : "").filter(Boolean).join(" · ") : "";
+  el.innerHTML = `<div class="ch"><div class="ct"><b>${esc(p.a)}</b><div class="pin">Parcel ${esc(p.d)}</div>
+      ${place ? `<div class="place">${esc(place)}</div>` : ""}</div>
       <button class="nx" data-close aria-label="Close">${ICON.close}</button></div>
-    <div class="counts">${t ? `<div class="row"><span class="k">On site</span><span class="v">${countText(t.on)}</span></div>
-      <div class="row"><span class="k">Off site</span><span class="v">${countText(t.off)}</span></div>`
-      : `<div class="row"><span class="v none">No votes yet</span></div>`}</div>
-    <div class="mine" data-mine>${myVoteText(m)}</div>
+    ${t ? `<div class="counts" aria-label="Votes by where they were cast">${rows}</div>
+      ${t.tier ? "" : `<div class="note">None of these votes were cast close enough to show with "${esc(FILTER_LABEL[S.farthest])}".</div>`}
+      ${pace ? `<div class="pace" title="Time since each voter's previous vote: rapid under 10 s, steady 10 s to 2 min, unhurried over 2 min"><span class="k">Pace</span><span>${esc(pace)}</span></div>` : ""}`
+      : `<div class="counts"><span class="v none">No votes yet</span></div>`}
+    <div class="mine" data-mine>${myVoteText(m, info)}</div>
     <details class="cx"${open ? " open" : ""}><summary>City record</summary>
       <dl class="city">${S.fields.map(fd => { const v = val(p.city[fd.name]); return `<dt>${esc(fd.alias)}</dt><dd class="${v === null ? "blank" : ""}">${v === null ? "Blank" : esc(v)}</dd>`; }).join("")}</dl></details>`;
   if (fresh && el.hidden) { el.classList.remove("in"); void el.offsetWidth; el.classList.add("in"); }
   el.hidden = false;
   setDockH();
 }
+const FILTER_LABEL = { lot: "At the lot", block: "On the block", neighborhood: "In the neighborhood", ward: "In the ward", city: "In Cleveland", all: "From anywhere" };
 function setDockH() { const d = $("[data-dock]"); if (d) document.documentElement.style.setProperty("--dock-h", `${d.offsetHeight}px`); }
 
 /* sheets: More, the location note, the card question */
 function closeSheet() { S.sheet = null; const s = $("[data-sheet]"); s.hidden = true; s.innerHTML = ""; drawBar(); }
 function openMore() {
   S.sheet = "more"; if (S.sel) select(null);
-  const s = $("[data-sheet]"), i = Math.max(0, CONFIG.onSiteStops.indexOf(S.onSite));
+  const s = $("[data-sheet]");
   s.innerHTML = `<div class="key"><div class="ks">${CHOICES.map(c => `<span><i class="sw" style="background:${c.color}"></i>${esc(c.label)}</span>`).join("")}<span><i class="sw" style="background:${TIE.color}"></i>Tied</span></div>
-      <div class="ks muted"><span><i class="sw" style="background:#55525A"></i>Solid: voted at the lot</span><span><i class="sw h" style="--c:#55525A"></i>Hatched: voted from elsewhere</span></div></div>
-    <div class="dist"><label for="onsite">On site within <output data-onsite-out>${S.onSite} m</output></label>
-      <input id="onsite" type="range" min="0" max="${CONFIG.onSiteStops.length - 1}" step="1" value="${i}" data-onsite aria-valuetext="${S.onSite} meters">
-      <div class="ticks">${CONFIG.onSiteStops.map(m => `<span>${m}</span>`).join("")}</div></div>
-    ${locState !== "on" ? `<button class="mrow" data-use-loc>Use my location <span class="muted">${ICON.next}</span></button>` : ""}
+      <div class="ks muted"><span><i class="sw" style="background:#55525A"></i>Solid: someone voted at the lot</span><span><i class="sw h" style="--c:#55525A"></i>Hatched: the closest votes came from farther away</span></div></div>
+    <div class="filt" role="group" aria-labelledby="filt-h"><div class="fh" id="filt-h">Show votes cast</div>
+      <div class="chips">${FILTERS.map(k => `<button data-filter="${k}" aria-pressed="${S.farthest === k}">${esc(FILTER_LABEL[k])}</button>`).join("")}</div>
+      <div class="fhint">Changes only what you see, not the votes. On every lot, the votes cast closest to it set its color.</div></div>
+    ${locState !== "on" ? `<button class="mrow" data-use-loc>Use my location ${ICON.next}</button>` : ""}
+    <button class="mrow" data-share>Share the map ${ICON.next}</button>
     <button class="mrow" data-go="card">Your voter card ${ICON.next}</button>
+    <button class="mrow" data-go="data">Download the data ${ICON.next}</button>
     <button class="mrow" data-go="how">How votes count ${ICON.next}</button>`;
   $$("svg", s).forEach(x => { x.setAttribute("width", "18"); x.setAttribute("height", "18"); });
   s.hidden = false; drawBar();
@@ -683,13 +741,20 @@ function openLocNote() {
     <div class="acts"><button class="btn btn-dark btn-sm" data-loc-yes>Use my location</button><button class="btn btn-sm" data-loc-no>Not now</button></div></div>`;
   s.hidden = false; drawBar();
 }
-async function setOnSite(m) {
-  if (m === S.onSite) return;
-  S.onSite = m; ls.set(ONSITE_KEY, m);
-  const out = $("[data-onsite-out]"); if (out) out.textContent = `${m} m`;
-  $("[data-onsite]")?.setAttribute("aria-valuetext", `${m} meters`);
+async function setFarthest(k) {
+  if (!FILTERS.includes(k) || k === S.farthest) return;
+  S.farthest = k; ls.set(FARTHEST_KEY, k);
+  $$("[data-filter]").forEach(b => b.setAttribute("aria-pressed", b.dataset.filter === k));
   paint();   // your-votes view changes at once
   try { if (await refreshTallies()) { paint(); drawCard(); } } catch { toast("Couldn't reach the record. Try again in a moment."); }
+}
+async function shareMap() {
+  const url = pageBase();
+  if (navigator.share) {
+    try { await navigator.share({ title: CONFIG.title, text: CONFIG.shareText, url }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  pill(await copyText(url) ? "Link to the map copied" : "Couldn't copy the link", 2200);
 }
 
 /* the card switch: a card link with a different ID on a device that already has votes */
@@ -749,37 +814,95 @@ function openHow() {
   p.innerHTML = `<div class="in">${pageTop("How votes count")}
     <p>This is a public record of what people want for the City of Cleveland's vacant land: open space, development, or yard expansion. It's kept so decision-makers can be held to it. It goes with neighborhood meetings and conversations, not instead of them.</p>
     <p>Anyone can vote on any lot. There are no codes, sign-ups, or limits. Instead, every vote keeps a record of how it was cast, and the map uses that record to decide how much the vote counts. These rules are public, and this page is all of them.</p>
-    <h2>Votes near the lot drive the map</h2>
-    <p>When you vote, your phone's location is turned into one number: how far you were from the lot. A vote cast within ${CONFIG.onSiteDefault} meters counts as <b>on site</b>. Anyone can change that distance for their own view under More.</p>
+    <h2>Where a vote was cast</h2>
+    <p>When you vote, your phone's location is checked against the lot, and the vote is placed in one of these groups:</p>
     <ul>
-      <li>A lot with at least one on-site vote is <b>solid</b>, in the color of the choice with the most on-site votes.</li>
-      <li>A lot with only remote votes is <b>hatched</b>, in the color of the choice with the most remote votes.</li>
-      <li><b>Grey</b> means two choices are tied.</li>
+      <li><b>At the lot:</b> within 200 feet. This is the "on site" vote.</li>
+      <li><b>On the block:</b> within 500 feet.</li>
+      <li><b>In the neighborhood:</b> inside the lot's neighborhood, using the city's 34 neighborhood boundaries.</li>
+      <li><b>In the ward:</b> inside the lot's council ward.</li>
+      <li><b>Elsewhere in Cleveland</b>, <b>outside Cleveland</b>, or <b>no location</b> (location turned off).</li>
     </ul>
-    <h2>Remote votes are shown but don't override</h2>
-    <p>Votes cast from farther away, from outside the city, or without location are still recorded, and each lot's card shows them. They just can't outweigh the people who went to the lot: one on-site vote sets the color over any number of remote ones.</p>
+    <h2>The closest votes set the color</h2>
+    <p>On each lot, the group closest to the lot that has any votes decides its color: the choice with the most votes in that group. Farther votes are still recorded and shown on the lot's card, but they can't outweigh closer ones. One vote cast at the lot outweighs any number cast from home.</p>
+    <ul>
+      <li><b>Solid</b> means someone voted at the lot.</li>
+      <li><b>Hatched</b> means the closest votes came from farther away.</li>
+      <li><b>Grey</b> means two choices are tied in the group that decides.</li>
+    </ul>
+    <p><b>Show votes cast</b> (under More) narrows the map to votes cast that close or closer: for example, only votes cast in each lot's own neighborhood. It changes what you see, never the votes.</p>
+    <h2>Pace</h2>
+    <p>Each vote also records how long it came after the same voter's previous vote. A hundred votes in two minutes reads differently from a hundred over an afternoon. A lot's card shows its votes' pace:</p>
+    <ul>${PACE.map(q => `<li><b>${q.label[0].toUpperCase() + q.label.slice(1)}:</b> ${q.hint}.</li>`).join("")}</ul>
+    <p>Pace doesn't change a lot's color. It's there so everyone can see how the votes were cast.</p>
     <h2>What's stored and what isn't</h2>
     <p>Stored with each vote:</p>
     <ul>
       <li>the lot, your choice, and the time;</li>
-      <li>your distance from the lot, rounded: to 10 m when you're within 200 m, to 100 m within 2 km, to 1 km beyond that, or only "outside the city";</li>
+      <li>your distance from the lot, rounded: to 10 feet within 1,000 feet, to 100 feet within 2 miles, to half a mile beyond that, or only "outside Cleveland";</li>
+      <li>yes or no: were you inside the lot's neighborhood, and inside its ward (not which neighborhood or ward you were in);</li>
       <li>how precise your phone said its location was, and how old that reading was;</li>
       <li>the time since your previous vote, and how fast you'd have had to travel between those two lots.</li>
     </ul>
-    <p>Not stored: where you were. Your location is used once to measure the distance and then thrown away. No name, email, phone number, or account. Every change and every cleared vote is kept, so the record can't be quietly rewritten.</p>
-    <p>The public map shows totals for each lot. Nobody can pull up a list of one person's votes.</p>
+    <p>Not stored: where you were. Your location is used once to make those measurements and then thrown away. No name, email, phone number, or account. Every change and every cleared vote is kept, so the record can't be quietly rewritten.</p>
+    <p>The map and the downloads show votes by lot. Nobody can pull up a list of one person's votes.</p>
     <h2>Your voter ID</h2>
     <p>The first time you open this page, your browser makes a random voter ID and keeps it. That ID holds your votes: one per lot, which you can change or clear any time. Tap your vote again to clear it; tap another color to change it.</p>
     <p>If you clear your browser, the ID goes with it. To keep it, open More, then Your voter card, and copy the link into your notes or an email to yourself, or screenshot the code. Opening that link on any device brings your votes back. Anyone with the link can vote as you, so keep it to yourself. Printed voter cards work the same way.</p>
     <h2>The rules may be tuned</h2>
-    <p>The distance that counts as on site, and checks for things like votes cast faster than anyone could travel between lots, may be adjusted as votes come in. Because the record keeps measurements rather than verdicts, changing a rule changes how votes are shown, never the votes themselves.</p>
+    <p>The distances, the pace thresholds, and checks for things like votes cast faster than anyone could travel between lots may be adjusted as votes come in. Because the record keeps measurements rather than verdicts, changing a rule changes how votes are shown, never the votes themselves.</p>
   </div>`;
   p.hidden = false; p.scrollTop = 0; drawCard();
+}
+function openData() {
+  S.page = "data"; select(null); closeSheet();
+  const p = $("[data-page]");
+  p.innerHTML = `<div class="in">${pageTop("Download the data")}
+    <p>The record is public. Anyone can download it as a spreadsheet (CSV). Neither file has voter IDs or times of day, so no one's votes can be pieced together into where they went.</p>
+    <div class="panel dl"><h2>Votes by lot</h2>
+      <p>One row per lot with votes: parcel, address, neighborhood, ward, and planning region; counts of each choice by where the votes were cast; pace; and how the lot shows on the map.</p>
+      <button class="btn btn-dark" data-dl="lots">Download votes by lot</button></div>
+    <div class="panel dl"><h2>Every vote</h2>
+      <p>One row per vote: the lot, the choice, where it was cast from, the distance in feet, its pace, and the date. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't.</p>
+      <button class="btn btn-dark" data-dl="votes">Download every vote</button></div>
+  </div>`;
+  p.hidden = false; p.scrollTop = 0; drawCard();
+}
+function downloadFile(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+const csvCell = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+const csv = rows => "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+const stamp = () => new Date().toLocaleDateString("en-CA");   // YYYY-MM-DD, local
+const choiceWord = k => k === "tie" ? "tied" : k ? lower(k) : "";
+async function download(kind, btn) {
+  const was = btn.textContent; btn.textContent = "Preparing…"; btn.disabled = true;
+  try {
+    if (kind === "lots") {
+      const d = await rpc("export_lots", {});
+      const head = ["parcel", "address", "neighborhood", "ward", "planning_region", "total_votes",
+        ...TIERS.flatMap(t => CHOICES.map(c => `${t.col}_${c.key}`)), "pace_rapid", "pace_steady", "pace_unhurried",
+        "closest_votes_cast", "leading_choice", "map_style"];
+      const rows = d.map(r => [r.parcel, r.address, r.neighborhood, r.ward, r.region, sum(r.counts), ...r.counts, ...r.pace,
+        r.tier ? TK[r.tier].phrase() : "", choiceWord(r.lead), r.display || ""]);
+      downloadFile(`public-land-votes-by-lot-${stamp()}.csv`, csv([head, ...rows]), "text/csv");
+    } else {
+      const d = await rpc("export_votes", {});
+      const head = ["parcel", "address", "neighborhood", "ward", "planning_region", "choice", "cast_from", "distance_ft", "pace", "date"];
+      const rows = d.map(([pin, addr, nb, wd, rg, choice, tier, dist, pace, date]) =>
+        [pin, addr, nb, wd, rg, choiceWord(choice), TK[tier]?.phrase({ neighborhood: "the lot's neighborhood", ward: "the lot's ward" }) ?? tier, dist, pace, date]);
+      downloadFile(`public-land-votes-${stamp()}.csv`, csv([head, ...rows]), "text/csv");
+    }
+  } catch { toast("The download didn't work. Try again in a moment."); }
+  finally { if (btn.isConnected) { btn.textContent = was; btn.disabled = false; } }
 }
 function route() {
   const h = location.hash.replace(/^#\/?/, "");
   if (h === "card") return openCard();
   if (h === "how") return openHow();
+  if (h === "data") return openData();
   if (S.page) closePage();
 }
 
@@ -797,12 +920,12 @@ function wire() {
     if (t.matches("[data-loc-yes]")) { ls.set(LOC_KEY, "asked"); closeSheet(); return startWatch(); }
     if (t.matches("[data-loc-no]")) { ls.set(LOC_KEY, "later"); closeSheet(); return; }
     if (t.matches("[data-locate]")) return locClick();
+    if (t.matches("[data-filter]")) return setFarthest(t.dataset.filter);
+    if (t.matches("[data-share]")) { closeSheet(); return shareMap(); }
+    if (t.matches("[data-dl]")) return download(t.dataset.dl, t);
     if (t.matches("[data-copy]")) {
       copyText(cardLink()).then(ok => { t.textContent = ok ? "Copied" : "Couldn't copy: select the link below"; setTimeout(() => { if (t.isConnected) t.textContent = "Copy link"; }, 2200); });
     }
-  });
-  document.addEventListener("input", e => {
-    if (e.target.matches("[data-onsite]")) setOnSite(CONFIG.onSiteStops[+e.target.value] ?? CONFIG.onSiteDefault);
   });
   document.addEventListener("keydown", e => {
     if (e.target.matches("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
