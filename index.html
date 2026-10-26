@@ -160,6 +160,37 @@ button.mrow:hover{background:var(--mist)}
 .vc p{margin:14px auto 0;font-size:14.5px;color:var(--muted)}
 .vc .link{margin-top:10px;font-size:12.5px;color:var(--muted);word-break:break-all;font-variant-numeric:tabular-nums}
 
+/* the group chip above the bar */
+.gchip{display:flex;justify-content:flex-start}
+.gchip .gc{display:inline-flex;align-items:center;background:var(--paper);border-radius:999px;box-shadow:var(--shadow);font-size:13.5px;min-height:36px;padding:0 4px 0 13px;gap:2px}
+.gchip .gc button{border:0;background:none;padding:0;min-height:36px;display:inline-flex;align-items:center}
+.gchip .gc b{font-weight:650;letter-spacing:.01em;margin-left:4px}
+.gchip .gc .gx{width:34px;justify-content:center;border-radius:999px;color:var(--muted)}
+.gchip .gc .gx:hover{background:var(--mist);color:var(--ink)}
+.gchip .gc .gx svg{width:15px;height:15px}
+/* group field in Show votes cast, and the group code forms */
+.gform{display:flex;gap:6px;margin-top:10px;align-items:center}
+.gform input{flex:1;min-width:0;min-height:38px;border:1.5px solid var(--line);border-radius:10px;padding:0 10px;font-size:14px;text-transform:uppercase;background:var(--paper)}
+.gform input::placeholder{text-transform:none}
+.gform input:focus{outline:none;border-color:var(--ink)}
+.gmsg{font-size:12.5px;color:var(--danger);margin-top:6px}
+.gmsg:empty{display:none}
+.gon{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px}
+.gon b{font-weight:650}
+.code{font-size:clamp(26px,8vw,38px);font-weight:700;letter-spacing:.02em;margin:2px 0 14px;word-break:break-all}
+.vc .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.vc .acts .btn{min-width:0}
+/* Why? (no location) */
+.why{border:0;background:none;padding:0;font-size:inherit;color:var(--ink);text-decoration:underline;text-underline-offset:2px;font-weight:550}
+.sheet .wh{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.sheet .wh p{margin-top:4px}
+.sheet .path{font-size:13.5px;color:var(--muted)}
+.sheet .found{color:#0B6B47;font-weight:600}
+.wqr{display:flex;gap:12px;align-items:center;border-top:1px solid var(--mist);margin-top:10px;padding-top:10px}
+.wqr .qr{width:112px;height:112px;flex:none;display:grid;place-items:center}
+.wqr .qr svg{width:100%;height:100%;display:block}
+.wqr p{font-size:13.5px;margin:0 0 6px}
+.wqr p.muted{font-size:12.5px;margin:0}
 .boot{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted);z-index:60;background:var(--mist)}
 .boot b{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -172,6 +203,7 @@ button.mrow:hover{background:var(--mist)}
 <div class="dock" data-dock hidden>
   <section class="card" data-card hidden aria-label="Selected lot"></section>
   <div class="sheet" data-sheet hidden></div>
+  <div class="gchip" data-gchip hidden></div>
   <nav class="vbar" data-bar aria-label="Vote"></nav>
 </div>
 <div class="page" data-page hidden></div>
@@ -199,10 +231,18 @@ button.mrow:hover{background:var(--mist)}
    card shows a lot's median compared with every vote in the record ("longer
    than 70% of votes"); no cutoffs. The downloads have each vote's seconds.
    Timing doesn't change colors.
+   Each vote also records what's lost if it isn't captured then: how fast
+   the voter was moving, what was on the screen (everyone's votes, the
+   filter, the city's record), phone or computer, card link or not, the
+   page version, why there was no location, and the device's group code.
+   Group codes (MAPLE-RIVER-42) gather a group's votes; they never change
+   counts, colors or which votes come first.
 
-   The database (schema.sql) is reached only through six functions:
-   cast_vote, lot_tallies, my_votes, lot_info, export_lots, export_votes.
+   The database (schema.sql) is reached only through ten functions:
+   cast_vote, lot_tallies, my_votes, lot_info, export_lots, export_votes,
+   create_group, group_exists, export_group_lots, export_group_votes.
    ===================================================================== */
+const PAGE_VERSION = "2026-10-26";   // stored with each vote; change it when the page changes
 const CONFIG = {
   parcelsUrl: "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/City_Landbank/FeatureServer/0",
   idField: "parcelpin", addressField: "par_addr_all",
@@ -272,6 +312,10 @@ const sum = a => a.reduce((x, y) => x + y, 0);
 const normId = v => String(v ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 const displayId = id => /^\d{8}$/.test(id) ? `${id.slice(0, 3)}-${id.slice(3, 5)}-${id.slice(5)}` : id;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// A group code as typed -> its stored form, the same way the database does it (norm_group):
+// trimmed, uppercased, spaces turned into hyphens. " maple river 42" -> "MAPLE-RIVER-42". The database decides.
+const normGroup = v => { const s = String(v ?? "").trim(); return s ? s.toUpperCase().replace(/\s+/g, "-") : ""; };
+const GROUP_RE = /^[A-Z]+-[A-Z]+-[0-9]{2}$/;
 const ls = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } }
@@ -328,42 +372,109 @@ function loadVoter() {
 function setVoter(id) { voterId = id.toLowerCase(); ls.set(VOTER_KEY, voterId); }
 const pageBase = () => location.href.split(/[?#]/)[0];
 const cardLink = (id = voterId) => `${pageBase()}?card=${id}`;
-// Reads ?card= from the address, then takes it out of the address bar.
-function takeCardParam() {
-  const u = new URL(location.href), c = u.searchParams.get("card");
-  if (c === null) return null;
-  u.searchParams.delete("card");
+// Reads ?card= and ?group= from the address. card: an ID, "bad", or null. group: as written, or null.
+function readParams() {
+  const u = new URL(location.href), c = u.searchParams.get("card"), g = u.searchParams.get("group");
+  return { card: c === null ? null : UUID_RE.test(c.trim()) ? c.trim().toLowerCase() : "bad", group: g };
+}
+// Takes both out of the address bar once they've been handled.
+function stripParams() {
+  const u = new URL(location.href);
+  if (!u.searchParams.has("card") && !u.searchParams.has("group")) return;
+  u.searchParams.delete("card"); u.searchParams.delete("group");
   history.replaceState(history.state, "", u.pathname + (u.search === "?" ? "" : u.search) + u.hash);
-  return UUID_RE.test(c.trim()) ? c.trim().toLowerCase() : "bad";
+}
+// "card_link" if this page load came from a ?card= link, otherwise "direct". Printed cards are worked out
+// later from the cards table, so the page doesn't need to know.
+let arrivedVia = "direct";
+
+/* --------------------------------------------------------------- groups
+   A group code (MAPLE-RIVER-42) belongs to this device, not the voter ID, and goes with every vote cast
+   while it's on. It's for organizing: it never changes how a vote counts. */
+const GROUP_KEY = "plvt:group";
+const groupLink = (code = S.group) => `${pageBase()}?group=${encodeURIComponent(code)}`;
+// The link in the "vote on your phone" code: this voter's card, plus the group if one is on.
+const continueLink = () => cardLink() + (S.group ? `&group=${encodeURIComponent(S.group)}` : "");
+function setGroup(code) {
+  S.group = code || null;
+  if (S.group) ls.set(GROUP_KEY, S.group); else { try { localStorage.removeItem(GROUP_KEY); } catch {} }
+  drawGroupChip();
+}
+// Asks the record whether a code is a group. true / false; throws if the record can't be reached.
+async function checkGroup(code) {
+  const c = normGroup(code);
+  if (!GROUP_RE.test(c)) return false;
+  return (await rpc("group_exists", { code: c })) === true;
 }
 
 /* --------------------------------------------------------------- location
    watchPosition while the page is open; the latest fix goes with each vote. */
 const LOC_KEY = "plvt:location";   // "asked" once the note has been answered with "Use my location", "later" for "Not now"
-let fix = null, watchId = null, locState = "off";   // off | asking | on | denied | unavailable
-let centeredOnMe = false;
+// locState: the latest from watchPosition. off (not asked, or "Not now") | asking (waiting for a fix) | on |
+// denied | unavailable | timeout | unsupported. An earlier fix is still used after a later error, except "denied".
+let fix = null, prevFix = null, watchId = null, locState = "off";
+let centeredOnMe = false, whyOnFail = false;
+const hasGeo = () => "geolocation" in navigator;
 async function locPermission() {
   try { return (await navigator.permissions.query({ name: "geolocation" })).state; } catch { return "unknown"; }
 }
 function startWatch() {
-  if (!("geolocation" in navigator)) { locState = "unavailable"; drawLocate(); return; }
+  if (!hasGeo()) { locState = "unsupported"; locChanged(); return; }
   if (watchId !== null) return;
-  locState = "asking"; drawLocate();
+  locState = "asking"; locChanged();
   watchId = navigator.geolocation.watchPosition(p => {
-    fix = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, t: p.timestamp || Date.now() };
-    locState = "on"; drawLocate(); showMe();
+    const c = p.coords, t = p.timestamp || Date.now();
+    if (fix && t <= fix.t) return;   // the same reading again
+    prevFix = fix;   // the last two fixes stay in memory only, for the speed fallback
+    fix = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, t, speed: c.speed !== null && Number.isFinite(c.speed) && c.speed >= 0 ? c.speed : null };
+    locState = "on"; whyOnFail = false; locChanged(); showMe();
     if (!centeredOnMe) { centeredOnMe = true; centerOnMe(true); }
   }, e => {
-    if (e.code === 1) { locState = "denied"; navigator.geolocation.clearWatch(watchId); watchId = null; fix = null; showMe(); }
-    else if (locState === "asking") locState = "unavailable";
-    drawLocate();
+    if (e.code === 1) { locState = "denied"; navigator.geolocation.clearWatch(watchId); watchId = null; fix = prevFix = null; showMe(); }
+    else locState = e.code === 3 ? "timeout" : "unavailable";
+    locChanged();
+    if (whyOnFail && !fix) { whyOnFail = false; openWhy(); }
   }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
 }
-// What goes to cast_vote: the latest fix, or nothing.
+// Try again: stop watching and start over.
+function restartWatch() {
+  if (watchId !== null) { try { navigator.geolocation.clearWatch(watchId); } catch {} watchId = null; }
+  ls.set(LOC_KEY, "asked"); startWatch();
+}
+function locChanged() { drawLocate(); if (S.sheet === "why" && locStatus() !== whyShown) drawWhy(); }
+// Why there's no location, as stored with the vote: ok | declined | denied | unavailable | timeout | unsupported | waiting.
+function locStatus() {
+  if (fix) return "ok";
+  if (!hasGeo()) return "unsupported";
+  return { asking: "waiting", denied: "denied", unavailable: "unavailable", timeout: "timeout", unsupported: "unsupported" }[locState] || "declined";
+}
+// Meters between two fixes.
+function metersBetween(a, b) {
+  const R = 6371008.8, r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+// How fast the voter was moving (m/s): the phone's own speed if it gives one, otherwise from its last two fixes.
+function speedNow() {
+  if (!fix) return null;
+  if (fix.speed !== null) return { speed_ms: fix.speed, speed_source: "gps" };
+  if (prevFix && fix.t > prevFix.t) return { speed_ms: metersBetween(prevFix, fix) / ((fix.t - prevFix.t) / 1000), speed_source: "fixes" };
+  return null;
+}
+// What goes to cast_vote: the latest fix and the speed, or nothing.
 function fixArgs() {
   if (!fix) return {};
-  return { lat: fix.lat, lng: fix.lng, accuracy_m: Math.round(fix.acc ?? 0), fix_age_s: Math.max(0, Math.round((Date.now() - fix.t) / 1000)) };
+  return { lat: fix.lat, lng: fix.lng, accuracy_m: Math.round(fix.acc ?? 0), fix_age_s: Math.max(0, Math.round((Date.now() - fix.t) / 1000)), ...speedNow() };
 }
+// The computer's system, for the Why? sheet's settings path.
+function detectOS() {
+  const ua = navigator.userAgent || "", pf = navigator.userAgentData?.platform || navigator.platform || "";
+  if (/iPhone|iPad|iPod/.test(ua) || (/Mac/i.test(pf) && navigator.maxTouchPoints > 1)) return "ios";
+  if (/Mac/i.test(pf) || /Mac OS X/.test(ua)) return "mac";
+  if (/Win/i.test(pf) || /Windows/.test(ua)) return "windows";
+  return "other";
+}
+const isSafari = () => { const ua = navigator.userAgent || ""; return /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|Edg\/|OPR\/|Firefox/.test(ua); };
 function centerOnMe(first) {
   if (!gl || !fix) return;
   const [[x0, y0], [x1, y1]] = S.bounds, pad = 0.01;
@@ -376,7 +487,7 @@ function centerOnMe(first) {
 }
 function drawLocate() {
   const b = $("[data-locate]"); if (!b) return;
-  b.innerHTML = ICON.locate; b.hidden = false; b.classList.toggle("on", locState === "on");
+  b.innerHTML = ICON.locate; b.hidden = false; b.classList.toggle("on", !!fix);
 }
 
 /* ------------------------------------------------------------- the lots
@@ -464,9 +575,12 @@ const S = {
   fc: null, byId: new Map(), fields: [], bounds: null,
   farthest: FILTERS.includes(ls.get(FARTHEST_KEY)) ? ls.get(FARTHEST_KEY) : "all",
   tally: new Map(),      // parcel -> { counts: [21], timing: [timed, median seconds, median %], tier, lead, display }
-  mine: new Map(),       // parcel -> { choice, d (feet or null; undefined while saving), out, tier }
+  mine: new Map(),       // parcel -> { choice, d (feet or null; undefined while saving), out, tier, group }
   info: new Map(),       // parcel -> { neighborhood, ward, region }
   view: "all",           // all | mine
+  group: (v => typeof v === "string" && GROUP_RE.test(v) ? v : null)(ls.get(GROUP_KEY)),   // this device's group code
+  groupFilter: null,     // Show votes cast > Group: only that group's votes (this visit only)
+  openedRecord: false,   // "City record" was opened on the selected lot's card
   sel: null, sheet: null, page: null
 };
 let gl = null;
@@ -476,6 +590,7 @@ function lookOf(id) {
   if (S.view === "mine") {
     const m = S.mine.get(id); if (!m) return null;
     if (m.tier && rankOf(m.tier) > rankOf(S.farthest)) return null;
+    if (S.groupFilter && m.group !== S.groupFilter) return null;
     return { st: m.tier === "lot" ? "s" : "h", c: m.choice };
   }
   const t = S.tally.get(id); if (!t || !t.display) return null;
@@ -486,7 +601,7 @@ function lookOf(id) {
 let tallyAt = 0, tallyReq = 0;
 async function refreshTallies() {
   const n = ++tallyReq;
-  const d = await rpc("lot_tallies", { farthest: S.farthest });
+  const d = await rpc("lot_tallies", { farthest: S.farthest, group_code: S.groupFilter });
   if (n !== tallyReq) return false;   // a newer request (e.g. the filter changed) wins
   S.tally = new Map((d.rows || []).map(([p, counts, timing, tier, lead, display]) => [p, { counts, timing, tier, lead, display }]));
   tallyAt = Date.now();
@@ -496,8 +611,8 @@ async function refreshMine() {
   const id = voterId, d = await rpc("my_votes", { voter_id: id });
   if (id !== voterId) return false;
   // keep votes still being saved as they are on screen
-  const next = new Map(d.map(([p, choice, dist, out, tier]) => [p, { choice, d: dist, out, tier }]));
-  for (const [p, q] of pending) { if (q.choice) next.set(p, { choice: q.choice, d: undefined, out: false, tier: null }); else next.delete(p); }
+  const next = new Map(d.map(([p, choice, dist, out, tier, group]) => [p, { choice, d: dist, out, tier, group: group ?? null }]));
+  for (const [p, q] of pending) { if (q.choice) next.set(p, { choice: q.choice, d: undefined, out: false, tier: null, group: q.group }); else next.delete(p); }
   S.mine = next;
   return true;
 }
@@ -524,14 +639,19 @@ function vote(key) {
   if (!id) { pill(gl && gl.getZoom() < CONFIG.selectZoom ? "Zoom in and tap a lot" : "Tap a lot first"); shake($("[data-bar]")); return; }
   const before = S.mine.get(id) || null;
   const choice = before && before.choice === key ? null : key;
-  if (choice) S.mine.set(id, { choice, d: undefined, out: false, tier: null }); else S.mine.delete(id);
-  pending.set(id, { choice });
+  const group = S.group;
+  if (choice) S.mine.set(id, { choice, d: undefined, out: false, tier: null, group }); else S.mine.delete(id);
+  pending.set(id, { choice, group });
   drawBar(); drawCard(); paint();
-  const args = { voter_id: voterId, parcel_id: id, choice, ...fixArgs() };
+  // Everything is captured now, at the tap, and sent with every cast (clears too).
+  const args = { voter_id: voterId, parcel_id: id, choice, ...fixArgs(),
+    saw_everyone: S.view === "all", filter_at_cast: S.farthest, group_filter_at_cast: S.groupFilter,
+    opened_record: S.openedRecord, touch_device: matchMedia("(pointer: coarse)").matches, arrived_via: arrivedVia,
+    page_version: PAGE_VERSION, group_code: group, location_status: locStatus() };
   const run = (chains.get(id) || Promise.resolve()).then(() => rpc("cast_vote", args)).then(r => {
     if (pending.get(id)?.choice === choice) {
       pending.delete(id);
-      if (r.choice) S.mine.set(id, { choice: r.choice, d: r.distance_ft ?? null, out: !!r.outside_city, tier: r.tier });
+      if (r.choice) S.mine.set(id, { choice: r.choice, d: r.distance_ft ?? null, out: !!r.outside_city, tier: r.tier, group: r.group_code ?? null });
       else S.mine.delete(id);
     }
     return refreshTallies().catch(() => {});
@@ -540,7 +660,9 @@ function vote(key) {
       pending.delete(id);
       if (before) S.mine.set(id, before); else S.mine.delete(id);
     }
-    toast(e.code === "parcel_not_found" ? "The city no longer lists this lot." : "Your vote didn't save. Check your connection and try again.");
+    toast(e.code === "parcel_not_found" ? "The city no longer lists this lot."
+      : e.code === "bad_group" ? `There's no group ${group}, so your vote didn't save. Turn the group off and vote again.`
+      : "Your vote didn't save. Check your connection and try again.");
   }).finally(() => { if (chains.get(id) === run) chains.delete(id); drawBar(); drawCard(); paint(); });
   chains.set(id, run);
 }
@@ -652,7 +774,7 @@ function showMe() { gl?.getSource("me")?.setData(fix ? { type: "FeatureCollectio
 function select(id) {
   if (S.sel === id) return;
   if (S.sel && gl) gl.setFeatureState({ source: "parcels", id: S.sel }, { s: false });
-  S.sel = id;
+  S.sel = id; S.openedRecord = false;
   if (id && gl) gl.setFeatureState({ source: "parcels", id }, { s: true });
   if (id) { closeSheet(); loadInfo(id); }
   drawBar(); drawCard(true);
@@ -677,6 +799,14 @@ function drawBar() {
       aria-pressed="${cur === c.key}" aria-label="${esc(c.label)}${cur === c.key ? " (your vote; tap to clear)" : ""}" title="${esc(c.label)} (${i + 1})">${esc(c.label)}</button>`).join("")
     + `<button class="ib" data-view aria-pressed="${S.view === "mine"}" aria-label="${S.view === "mine" ? "Showing your votes. Show everyone's" : "Showing everyone's votes. Show yours"}" title="${S.view === "mine" ? "Your votes" : "Everyone's votes"}">${ICON.mine}</button>`
     + `<button class="ib" data-more aria-label="More" aria-haspopup="true" aria-expanded="${S.sheet === "more"}">${ICON.more}</button>`;
+  drawGroupChip();
+}
+// "Group: MAPLE-RIVER-42 ×" above the bar while this device has a group on. × turns it off.
+function drawGroupChip() {
+  const el = $("[data-gchip]"); if (!el) return;
+  el.hidden = !S.group;
+  el.innerHTML = S.group ? `<span class="gc"><button data-go="group" aria-label="Group ${esc(S.group)}: open">Group:<b>${esc(S.group)}</b></button>
+    <button class="gx" data-group-off aria-label="Turn off group ${esc(S.group)}" title="Turn off the group">${ICON.close}</button></span>` : "";
   setDockH();
 }
 function countText(a) {
@@ -686,16 +816,19 @@ function countText(a) {
 function myVoteText(m, info) {
   if (!m) return "";
   const c = CK[m.choice];
-  if (m.d === undefined || !m.tier) return `<i class="sw" style="background:${c.color}"></i><span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· saving…</span></span>`;
+  const grp = m.group ? ` · ${esc(m.group)}` : "";
+  if (m.d === undefined || !m.tier) return `<i class="sw" style="background:${c.color}"></i><span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· saving…${grp}</span></span>`;
   const t = TK[m.tier], where = m.d === null || m.d === 0 ? t.phrase(info) : `${fmtDist(m.d)} away, ${t.phrase(info)}`;
+  // "Your vote: Development · 340 ft away, on the block · MAPLE-RIVER-42"; with no location, "… · no location · MAPLE-RIVER-42 · Why?"
+  const why = m.tier === "none" ? ` · <button class="why" data-why>Why?</button>` : "";
   return `<i class="sw${m.tier === "lot" ? "" : " h"}" style="--c:${c.color};background:${c.color}"></i>
-    <span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· ${esc(m.out ? "from outside Cleveland" : where)}</span></span>`;
+    <span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· ${esc(m.out ? "from outside Cleveland" : where)}${grp}${why}</span></span>`;
 }
 function drawCard(fresh) {
   const el = $("[data-card]");
-  if (!S.sel || S.page) { el.hidden = true; setDockH(); return; }
+  if (!S.sel || S.page || S.sheet === "why") { el.hidden = true; setDockH(); return; }
   const f = S.byId.get(S.sel), p = f.properties, t = S.tally.get(S.sel), m = S.mine.get(S.sel), info = S.info.get(S.sel);
-  const open = el.querySelector("details")?.open;
+  const open = !fresh && el.querySelector("details")?.open;   // a newly selected lot starts with its city record folded
   const val = v => v === null || v === undefined || String(v).trim() === "" ? null : typeof v === "number" ? fmt(v) : String(v);
   const place = info ? [info.neighborhood, info.ward, info.region && `${info.region} region`].filter(Boolean).join(" · ") : "";
   const lim = rankOf(S.farthest);
@@ -710,10 +843,11 @@ function drawCard(fresh) {
   el.innerHTML = `<div class="ch"><div class="ct"><b>${esc(p.a)}</b><div class="pin">Parcel ${esc(p.d)}</div>
       ${place ? `<div class="place">${esc(place)}</div>` : ""}</div>
       <button class="nx" data-close aria-label="Close">${ICON.close}</button></div>
+    ${S.groupFilter ? `<div class="note">Showing group ${esc(S.groupFilter)}'s votes only.</div>` : ""}
     ${t ? `<div class="counts" aria-label="Votes by where they were cast">${rows}</div>
       ${t.tier ? "" : `<div class="note">None of these votes were cast close enough to show with "${esc(FILTER_LABEL[S.farthest])}".</div>`}
       ${timing ? `<div class="timing" title="Seconds between each vote and the same voter's previous vote, compared with every vote in the record"><span class="k">Timing</span><span>${esc(timing)}</span></div>` : ""}`
-      : `<div class="counts"><span class="v none">No votes yet</span></div>`}
+      : `<div class="counts"><span class="v none">${S.groupFilter ? "No votes from this group" : "No votes yet"}</span></div>`}
     <div class="mine" data-mine>${myVoteText(m, info)}</div>
     <details class="cx"${open ? " open" : ""}><summary>City record</summary>
       <dl class="city">${S.fields.map(fd => { const v = val(p.city[fd.name]); return `<dt>${esc(fd.alias)}</dt><dd class="${v === null ? "blank" : ""}">${v === null ? "Blank" : esc(v)}</dd>`; }).join("")}</dl></details>`;
@@ -725,7 +859,7 @@ const FILTER_LABEL = { lot: "At the lot", block: "On the block", neighborhood: "
 function setDockH() { const d = $("[data-dock]"); if (d) document.documentElement.style.setProperty("--dock-h", `${d.offsetHeight}px`); }
 
 /* sheets: More, the location note, the card question */
-function closeSheet() { S.sheet = null; const s = $("[data-sheet]"); s.hidden = true; s.innerHTML = ""; drawBar(); }
+function closeSheet() { const was = S.sheet; S.sheet = null; const s = $("[data-sheet]"); s.hidden = true; s.innerHTML = ""; drawBar(); if (was === "why") drawCard(); }
 function openMore() {
   S.sheet = "more"; if (S.sel) select(null);
   const s = $("[data-sheet]");
@@ -733,8 +867,10 @@ function openMore() {
       <div class="ks muted"><span><i class="sw" style="background:#55525A"></i>Solid: someone voted at the lot</span><span><i class="sw h" style="--c:#55525A"></i>Hatched: the closest votes came from farther away</span></div></div>
     <div class="filt" role="group" aria-labelledby="filt-h"><div class="fh" id="filt-h">Show votes cast</div>
       <div class="chips">${FILTERS.map(k => `<button data-filter="${k}" aria-pressed="${S.farthest === k}">${esc(FILTER_LABEL[k])}</button>`).join("")}</div>
+      <div data-gfilter>${groupFilterHtml()}</div>
       <div class="fhint">Changes only what you see, not the votes. On every lot, the votes cast closest to it set its color.</div></div>
-    ${locState !== "on" ? `<button class="mrow" data-use-loc>Use my location ${ICON.next}</button>` : ""}
+    ${!fix ? `<button class="mrow" data-use-loc>Use my location ${ICON.next}</button>` : ""}
+    <button class="mrow" data-go="group">Group ${ICON.next}</button>
     <button class="mrow" data-share>Share the map ${ICON.next}</button>
     <button class="mrow" data-go="card">Your voter card ${ICON.next}</button>
     <button class="mrow" data-go="data">Download the data ${ICON.next}</button>
@@ -742,12 +878,83 @@ function openMore() {
   $$("svg", s).forEach(x => { x.setAttribute("width", "18"); x.setAttribute("height", "18"); });
   s.hidden = false; drawBar();
 }
+// Show votes cast > Group: a code field (exact match, checked against the record), or the group being shown.
+function groupFilterHtml(msg = "") {
+  if (S.groupFilter) return `<div class="gon">Group <b>${esc(S.groupFilter)}</b><button class="btn btn-sm" data-gfilter-off>Show all groups</button></div>`;
+  return `<form class="gform" data-gfilter-form><input id="gf-in" name="code" placeholder="Group code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Show votes cast: group code">
+    <button class="btn btn-sm" type="submit">Show</button></form><div class="gmsg" role="status">${esc(msg)}</div>`;
+}
+async function setGroupFilter(code) {
+  S.groupFilter = code || null;
+  const box = $("[data-gfilter]"); if (box) box.innerHTML = groupFilterHtml();
+  paint();   // your-votes view changes at once
+  try { if (await refreshTallies()) { paint(); drawCard(); } } catch { toast("Couldn't reach the record. Try again in a moment."); }
+}
+async function submitGroupFilter(form) {
+  const code = normGroup(form.code.value), msg = $(".gmsg", form.parentElement), btn = $("button", form);
+  if (!code) return;
+  btn.disabled = true;
+  try {
+    if (await checkGroup(code)) return setGroupFilter(code);
+    msg.textContent = "No group with that code.";
+  } catch { msg.textContent = "Couldn't reach the record. Try again in a moment."; }
+  finally { if (btn.isConnected) btn.disabled = false; }
+}
 function openLocNote() {
   S.sheet = "loc";
   const s = $("[data-sheet]");
   s.innerHTML = `<div class="pad"><p>Your location shows whether you're at the lot. We keep the distance, not where you are.</p>
     <div class="acts"><button class="btn btn-dark btn-sm" data-loc-yes>Use my location</button><button class="btn btn-sm" data-loc-no>Not now</button></div></div>`;
   s.hidden = false; drawBar();
+}
+/* Why? — why a vote has no location, and what to do about it. Opens only when tapped, or from
+   More > Use my location after a failed attempt. Never re-casts a vote by itself. */
+let whyFound = false, whyShown = null;
+function openWhy() {
+  S.sheet = "why"; whyFound = !!fix;
+  drawWhy(); drawCard(); drawBar();
+}
+const MAC_PATH = "System Settings > Privacy & Security > Location Services, then turn on your browser.";
+function drawWhy() {
+  const s = $("[data-sheet]"); if (S.sheet !== "why") return;
+  const st = locStatus(), os = detectOS();
+  whyShown = st;
+  let body;
+  if (st === "ok") {
+    body = `<p class="found">${whyFound ? "Your location is on." : "Location found."}</p><p>To add it to a vote, re-cast the vote: tap your choice to clear it, then tap it again.</p>`;
+  } else if (st === "unavailable") {
+    body = `<p>Your device couldn't find its location. On a laptop, location is often turned off for the browser in the computer's settings.</p>
+      <p class="path">${os === "mac" ? `On a Mac: ${MAC_PATH}` : os === "windows" ? "On Windows: Settings > Privacy & security > Location." : "Check that location is turned on in your device's settings, and that this browser is allowed to use it."}</p>`;
+  } else if (st === "denied") {
+    body = `<p>Location is blocked for this site. You can allow it in your browser's site settings.</p>
+      ${os === "mac" && isSafari() ? `<p class="path">Safari also says this when location is off for the whole Mac: System Settings > Privacy & Security > Location Services, then turn on Safari.</p>` : ""}`;
+  } else if (st === "timeout" || st === "waiting") {
+    body = `<p>Finding your location is taking a while.</p>`;
+  } else if (st === "unsupported") {
+    body = `<p>This browser can't share location.</p>`;
+  } else {
+    body = `<p>You chose not to share location.</p>`;
+  }
+  const act = st === "ok" || st === "unsupported" ? ""
+    : st === "declined" ? `<button class="btn btn-dark btn-sm" data-why-retry>Use my location</button>`
+    : `<button class="btn btn-dark btn-sm" data-why-retry>Try again</button>`;
+  s.innerHTML = `<div class="pad"><div class="wh"><div>${body}</div><button class="nx" data-why-close aria-label="Close">${ICON.close}</button></div>
+    ${act ? `<div class="acts">${act}</div>` : ""}
+    <div class="wqr"><div class="qr" data-why-qr role="img" aria-label="QR code: this voter card${S.group ? " and group" : ""}"></div>
+      <div><p>Scan with your phone to vote there with your location. Your votes come with you.</p><p class="muted">Anyone with it can vote as you.</p></div></div></div>`;
+  s.hidden = false;
+  const link = continueLink();
+  qrSvg(link).then(svg => { const q = $("[data-why-qr]", s); if (q && S.sheet === "why") q.innerHTML = svg; })
+    .catch(() => { const q = $("[data-why-qr]", s); if (q) q.innerHTML = `<span class="muted" style="font-size:12px">The code didn't load.</span>`; });
+}
+// More > Use my location: start it, or explain why it isn't working.
+async function useLocFromMore() {
+  if (fix) return centerOnMe(false);
+  if (!hasGeo()) { locState = "unsupported"; return openWhy(); }
+  if ((await locPermission()) === "denied") { locState = "denied"; return openWhy(); }
+  if (["denied", "unavailable", "timeout"].includes(locState)) return openWhy();
+  whyOnFail = true;
+  locClick();
 }
 async function setFarthest(k) {
   if (!FILTERS.includes(k) || k === S.farthest) return;
@@ -820,47 +1027,68 @@ function openHow() {
   S.page = "how"; select(null); closeSheet();
   const p = $("[data-page]");
   p.innerHTML = `<div class="in">${pageTop("How votes count")}
-    <p>This is a public record of what people want for the City of Cleveland's vacant land: open space, development, or yard expansion. It's kept so decision-makers can be held to it. It goes with neighborhood meetings and conversations, not instead of them.</p>
-    <p>Anyone can vote on any lot. There are no codes, sign-ups, or limits. Instead, every vote keeps a record of how it was cast, and the map uses that record to decide how much the vote counts. These rules are public, and this page is all of them.</p>
-    <h2>Where a vote was cast</h2>
-    <p>When you vote, your phone's location is checked against the lot, and the vote is placed in one of these groups:</p>
-    <ul>
-      <li><b>At the lot:</b> within 200 feet. This is the "on site" vote.</li>
-      <li><b>On the block:</b> within 500 feet.</li>
-      <li><b>In the neighborhood:</b> inside the lot's neighborhood, using the city's 34 neighborhood boundaries.</li>
-      <li><b>In the ward:</b> inside the lot's council ward.</li>
-      <li><b>Elsewhere in Cleveland</b>, <b>outside Cleveland</b>, or <b>no location</b> (location turned off).</li>
-    </ul>
-    <h2>The closest votes set the color</h2>
-    <p>On each lot, the group closest to the lot that has any votes decides its color: the choice with the most votes in that group. Farther votes are still recorded and shown on the lot's card, but they can't outweigh closer ones. One vote cast at the lot outweighs any number cast from home.</p>
-    <ul>
-      <li><b>Solid</b> means someone voted at the lot.</li>
-      <li><b>Hatched</b> means the closest votes came from farther away.</li>
-      <li><b>Grey</b> means two choices are tied in the group that decides.</li>
-    </ul>
-    <p><b>Show votes cast</b> (under More) narrows the map to votes cast that close or closer: for example, only votes cast in each lot's own neighborhood. It changes what you see, never the votes.</p>
-    <h2>Timing</h2>
-    <p>Each vote also records how many seconds came between it and the same voter's previous vote, on any lot. A hundred votes in two minutes looks different from a hundred over an afternoon.</p>
-    <p>No cutoff decides what's fast or slow. Instead, a lot's card compares its votes with every vote in the record: "longer than 70% of votes" means 70% of all votes came sooner after the voter's previous one. A voter's first vote has nothing to compare, so it isn't counted. As votes come in, the comparison moves with them.</p>
-    <p>Timing doesn't change a lot's color. The downloads include every vote's seconds, so anyone can study it.</p>
-    <h2>What's stored and what isn't</h2>
-    <p>Stored with each vote:</p>
-    <ul>
-      <li>the lot, your choice, and the time;</li>
-      <li>your distance from the lot, rounded: to 10 feet within 1,000 feet, to 100 feet within 2 miles, to half a mile beyond that, or only "outside Cleveland";</li>
-      <li>yes or no: were you inside the lot's neighborhood, and inside its ward (not which neighborhood or ward you were in);</li>
-      <li>how precise your phone said its location was, and how old that reading was;</li>
-      <li>the time since your previous vote, and how fast you'd have had to travel between those two lots.</li>
-    </ul>
-    <p>Not stored: where you were. Your location is used once to make those measurements and then thrown away. No name, email, phone number, or account. Every change and every cleared vote is kept, so the record can't be quietly rewritten.</p>
-    <p>The map and the downloads show votes by lot. Nobody can pull up a list of one person's votes.</p>
-    <h2>Your voter ID</h2>
-    <p>The first time you open this page, your browser makes a random voter ID and keeps it. That ID holds your votes: one per lot, which you can change or clear any time. Tap your vote again to clear it; tap another color to change it.</p>
-    <p>If you clear your browser, the ID goes with it. To keep it, open More, then Your voter card, and copy the link into your notes or an email to yourself, or screenshot the code. Opening that link on any device brings your votes back. Anyone with the link can vote as you, so keep it to yourself. Printed voter cards work the same way.</p>
-    <h2>The rules may be tuned</h2>
-    <p>The distances, and checks for things like votes cast faster than anyone could travel between lots may be adjusted as votes come in. Because the record keeps measurements rather than verdicts, changing a rule changes how votes are shown, never the votes themselves.</p>
+    <h2>What happens when you vote</h2>
+    <p>Anyone can vote on any lot. There's no sign-up and no limit. Instead of checking who you are, we record how each vote was cast. Then anyone looking at the results can see what kind of votes are behind them.</p>
+    <h2>What we record with each vote</h2>
+    <p>Your choice and the lot. How far you were from the lot, rounded, and whether you were in the lot's neighborhood and ward. We keep the distance, never where you were. Whether your device could find its location, or you chose not to share it. How fast you were moving. How long it had been since your previous vote. Whether you could see other people's votes when you voted. Whether you opened the city's record for the lot. Whether you used a phone or a computer, and whether you came from a printed card. Your group code, if you joined one. The date and time.</p>
+    <h2>What we don't record</h2>
+    <p>Your name, contact details, or location. Your votes are tied together by a random code saved on your device. Your voter card holds that code.</p>
+    <h2>What we publish</h2>
+    <p>Every vote, with how it was cast, so anyone can download the data. We leave out the code that ties a voter's votes together, the time of day, and group codes. Anyone with a group's code can download that group's votes the same way.</p>
+    <h2>How votes count on the map</h2>
+    <p>On every lot, the votes cast closest to it set its color. Votes without a location still count, but they come after every vote that has one. The record keeps whether a location was unavailable or turned down. Voting from a phone gives a location. Everything else is there to read, not to rank.</p>
+    <h2>Groups</h2>
+    <p>A group code helps a block club or coalition gather its votes and see them together. It doesn't change how any vote counts.</p>
+    <h2>How others may use it</h2>
+    <p>A city department, a council member, or a neighborhood group may decide some votes deserve more weight than others. For example, they might count only votes cast in the neighborhood, or leave out votes cast seconds apart. That's their choice, and anyone can check it against the same data. If someone tells you how people voted, ask them which votes they counted.</p>
   </div>`;
   p.hidden = false; p.scrollTop = 0; drawCard();
+}
+// Group: the device's group (large, with its link, QR code and Share), Start a group, Join a group.
+async function openGroup(msg = "") {
+  S.page = "group"; select(null); closeSheet();
+  const p = $("[data-page]");
+  p.innerHTML = `<div class="in">${pageTop("Group")}
+    ${S.group ? `<div class="panel vc"><div class="code" data-code>${esc(S.group)}</div>
+      <div class="qr" data-qr aria-label="QR code of the group link" role="img"></div>
+      <div class="acts"><button class="btn btn-dark" data-group-copy>Copy link</button><button class="btn" data-group-share>Share</button></div>
+      <p>Anyone with this code can join the group and see its votes.</p>
+      <div class="link">${esc(groupLink())}</div></div>` : ""}
+    <div class="panel dl"><h2>Start a group</h2>
+      <p>A new code for a block club or coalition. Votes cast while it's on are gathered under it. It doesn't change how any vote counts.</p>
+      <button class="btn btn-dark" data-group-start>Start a group</button></div>
+    <div class="panel dl"><h2>Join a group</h2>
+      <form class="gform" data-group-join><input name="code" placeholder="Group code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Group code">
+        <button class="btn btn-dark btn-sm" type="submit">Join</button></form><div class="gmsg" role="status">${esc(msg)}</div></div>
+  </div>`;
+  p.hidden = false; p.scrollTop = 0; drawCard();
+  if (S.group) { try { $("[data-qr]", p).innerHTML = await qrSvg(groupLink()); } catch { const q = $("[data-qr]", p); if (q) q.innerHTML = `<span class="muted">The code didn't load. The link below works the same way.</span>`; } }
+}
+async function startGroup(btn) {
+  btn.disabled = true; btn.textContent = "Starting…";
+  try {
+    const d = await rpc("create_group", {});
+    setGroup(d.code); pill(`Group ${d.code} on.`, 2200);
+    if (S.page === "group") openGroup();
+  } catch { toast("Couldn't start a group. Try again in a moment."); if (btn.isConnected) { btn.disabled = false; btn.textContent = "Start a group"; } }
+}
+async function joinGroup(form) {
+  const code = normGroup(form.code.value), msg = $(".gmsg", form.parentElement), btn = $("button", form);
+  if (!code) return;
+  btn.disabled = true;
+  try {
+    if (await checkGroup(code)) { setGroup(code); pill(`Group ${code} on.`, 2200); return openGroup(); }
+    msg.textContent = "No group with that code.";
+  } catch { msg.textContent = "Couldn't reach the record. Try again in a moment."; }
+  finally { if (btn.isConnected) btn.disabled = false; }
+}
+async function shareGroup() {
+  const url = groupLink();
+  if (navigator.share) {
+    try { await navigator.share({ title: `Group ${S.group}`, url }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  pill(await copyText(url) ? "Group link copied" : "Couldn't copy the link", 2200);
 }
 function openData() {
   S.page = "data"; select(null); closeSheet();
@@ -871,8 +1099,13 @@ function openData() {
       <p>One row per lot with votes: parcel, address, neighborhood, ward, and planning region; counts of each choice by where the votes were cast; the median time between votes, compared with every vote; and how the lot shows on the map.</p>
       <button class="btn btn-dark" data-dl="lots">Download votes by lot</button></div>
     <div class="panel dl"><h2>Every vote</h2>
-      <p>One row per vote: the lot, the choice, where it was cast from, the distance in feet, the seconds since the voter's previous vote and how that compares with every vote, and the date. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't.</p>
+      <p>One row per vote: the lot, the choice, where it was cast from, the distance in feet, the seconds since the voter's previous vote and how that compares with every vote, the date, how fast the voter was moving, whether everyone's votes were showing, the Show votes cast filter, whether the city's record for the lot was opened, and whether the voter's location was found. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't. Group codes aren't included.</p>
       <button class="btn btn-dark" data-dl="votes">Download every vote</button></div>
+    <div class="panel dl"><h2>Group code</h2>
+      <p>The same two files, with only one group's votes.</p>
+      <form class="gform" data-dl-group><input name="code" placeholder="Group code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Group code"></form>
+      <div class="gmsg" role="status"></div>
+      <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn btn-dark btn-sm" data-dl="lots" data-dl-g>Download votes by lot</button><button class="btn btn-dark btn-sm" data-dl="votes" data-dl-g>Download every vote</button></div></div>
   </div>`;
   p.hidden = false; p.scrollTop = 0; drawCard();
 }
@@ -885,25 +1118,39 @@ const csvCell = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
 const csv = rows => "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 const stamp = () => new Date().toLocaleDateString("en-CA");   // YYYY-MM-DD, local
 const choiceWord = k => k === "tie" ? "tied" : k ? lower(k) : "";
+const yesNo = v => v === true ? "yes" : v === false ? "no" : "";
 async function download(kind, btn) {
+  // A group's files: the code typed on the page, checked against the record.
+  let group = null;
+  if (btn.hasAttribute("data-dl-g")) {
+    const box = btn.closest(".panel"), msg = $(".gmsg", box);
+    group = normGroup($("input", box).value); msg.textContent = "";
+    if (!group) { msg.textContent = "Type a group code first."; return; }
+  }
   const was = btn.textContent; btn.textContent = "Preparing…"; btn.disabled = true;
+  const tag = group ? `-${group}` : "";
   try {
     if (kind === "lots") {
-      const d = await rpc("export_lots", {});
+      const d = group ? await rpc("export_group_lots", { code: group }) : await rpc("export_lots", {});
       const head = ["parcel", "address", "neighborhood", "ward", "planning_region", "total_votes",
         ...TIERS.flatMap(t => CHOICES.map(c => `${t.col}_${c.key}`)), "votes_with_timing", "median_seconds_since_voters_previous_vote", "median_longer_than_pct_of_votes",
         "closest_votes_cast", "leading_choice", "map_style"];
       const rows = d.map(r => [r.parcel, r.address, r.neighborhood, r.ward, r.region, sum(r.counts), ...r.counts, r.timed, r.median_seconds ?? "", r.median_pct ?? "",
         r.tier ? TK[r.tier].phrase() : "", choiceWord(r.lead), r.display || ""]);
-      downloadFile(`public-land-votes-by-lot-${stamp()}.csv`, csv([head, ...rows]), "text/csv");
+      downloadFile(`public-land-votes-by-lot${tag}-${stamp()}.csv`, csv([head, ...rows]), "text/csv");
     } else {
-      const d = await rpc("export_votes", {});
-      const head = ["parcel", "address", "neighborhood", "ward", "planning_region", "choice", "cast_from", "distance_ft", "seconds_since_voters_previous_vote", "longer_than_pct_of_votes", "date"];
-      const rows = d.map(([pin, addr, nb, wd, rg, choice, tier, dist, secs, pct, date]) =>
-        [pin, addr, nb, wd, rg, choiceWord(choice), TK[tier]?.phrase({ neighborhood: "the lot's neighborhood", ward: "the lot's ward" }) ?? tier, dist, secs, pct, date]);
-      downloadFile(`public-land-votes-${stamp()}.csv`, csv([head, ...rows]), "text/csv");
+      const d = group ? await rpc("export_group_votes", { code: group }) : await rpc("export_votes", {});
+      const head = ["parcel", "address", "neighborhood", "ward", "planning_region", "choice", "cast_from", "distance_ft", "seconds_since_voters_previous_vote", "longer_than_pct_of_votes", "date",
+        "moving_speed_mph", "everyone_votes_showing", "filter_at_cast", "city_record_opened", "location_status"];
+      const rows = d.map(([pin, addr, nb, wd, rg, choice, tier, dist, secs, pct, date, mph, saw, filt, opened, status]) =>
+        [pin, addr, nb, wd, rg, choiceWord(choice), TK[tier]?.phrase({ neighborhood: "the lot's neighborhood", ward: "the lot's ward" }) ?? tier, dist, secs, pct, date,
+         mph ?? "", yesNo(saw), filt ?? "", yesNo(opened), status ?? ""]);
+      downloadFile(`public-land-votes${tag}-${stamp()}.csv`, csv([head, ...rows]), "text/csv");
     }
-  } catch { toast("The download didn't work. Try again in a moment."); }
+  } catch (e) {
+    if (e.code === "bad_group") { const m = $(".gmsg", btn.closest(".panel")); if (m) m.textContent = "No group with that code."; }
+    else toast("The download didn't work. Try again in a moment.");
+  }
   finally { if (btn.isConnected) { btn.textContent = was; btn.disabled = false; } }
 }
 function route() {
@@ -911,6 +1158,7 @@ function route() {
   if (h === "card") return openCard();
   if (h === "how") return openHow();
   if (h === "data") return openData();
+  if (h === "group") return openGroup();
   if (S.page) closePage();
 }
 
@@ -924,9 +1172,17 @@ function wire() {
     if (t.matches("[data-view]")) { S.view = S.view === "mine" ? "all" : "mine"; drawBar(); paint(); pill(S.view === "mine" ? "Your votes" : "Everyone's votes", 1200); return; }
     if (t.matches("[data-go]")) { location.hash = `#/${t.dataset.go}`; return; }
     if (t.matches("[data-close-page]")) return closePage();
-    if (t.matches("[data-use-loc]")) { closeSheet(); return locClick(); }
+    if (t.matches("[data-use-loc]")) { closeSheet(); return useLocFromMore(); }
     if (t.matches("[data-loc-yes]")) { ls.set(LOC_KEY, "asked"); closeSheet(); return startWatch(); }
-    if (t.matches("[data-loc-no]")) { ls.set(LOC_KEY, "later"); closeSheet(); return; }
+    if (t.matches("[data-loc-no]")) { ls.set(LOC_KEY, "later"); whyOnFail = false; closeSheet(); return; }
+    if (t.matches("[data-why]")) return openWhy();
+    if (t.matches("[data-why-close]")) { closeSheet(); return drawCard(); }
+    if (t.matches("[data-why-retry]")) { whyFound = false; restartWatch(); return drawWhy(); }
+    if (t.matches("[data-group-off]")) { const g = S.group; setGroup(null); pill(`Group ${g} off`, 1600); return; }
+    if (t.matches("[data-group-start]")) return startGroup(t);
+    if (t.matches("[data-group-copy]")) { copyText(groupLink()).then(ok => { t.textContent = ok ? "Copied" : "Couldn't copy"; setTimeout(() => { if (t.isConnected) t.textContent = "Copy link"; }, 2200); }); return; }
+    if (t.matches("[data-group-share]")) return shareGroup();
+    if (t.matches("[data-gfilter-off]")) return setGroupFilter(null);
     if (t.matches("[data-locate]")) return locClick();
     if (t.matches("[data-filter]")) return setFarthest(t.dataset.filter);
     if (t.matches("[data-share]")) { closeSheet(); return shareMap(); }
@@ -935,6 +1191,13 @@ function wire() {
       copyText(cardLink()).then(ok => { t.textContent = ok ? "Copied" : "Couldn't copy: select the link below"; setTimeout(() => { if (t.isConnected) t.textContent = "Copy link"; }, 2200); });
     }
   });
+  document.addEventListener("submit", e => {
+    const f = e.target; e.preventDefault();
+    if (f.matches("[data-gfilter-form]")) return submitGroupFilter(f);
+    if (f.matches("[data-group-join]")) return joinGroup(f);
+  });
+  // "City record" opened on this lot's card (toggle doesn't bubble, so listen on the way down)
+  document.addEventListener("toggle", e => { if (e.target.matches?.("details.cx") && e.target.open && S.sel) S.openedRecord = true; }, true);
   document.addEventListener("keydown", e => {
     if (e.target.matches("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "Escape") { if (S.page) return closePage(); if (S.sheet && S.sheet !== "switch") return closeSheet(); if (S.sel) return select(null); }
@@ -947,7 +1210,7 @@ function wire() {
   });
 }
 async function locClick() {
-  if (locState === "on") return centerOnMe(false);
+  if (fix) return centerOnMe(false);
   if (locState === "denied" || (await locPermission()) === "denied") return toast("Location is off for this site. Turn it on in your browser's settings to vote on site.");
   if ((await locPermission()) === "granted") { centeredOnMe = false; return startWatch(); }
   openLocNote();
@@ -955,8 +1218,11 @@ async function locClick() {
 
 /* ------------------------------------------------------------------- boot */
 async function boot() {
+  // On load, in this order: read ?card and ?group; set arrived_via; adopt the card (asking first if this
+  // device has votes under another ID); check and adopt the group; take both out of the address bar.
   loadVoter();
-  const card = takeCardParam();
+  const { card, group } = readParams();
+  arrivedVia = card && card !== "bad" ? "card_link" : "direct";
   wire();
   let fc;
   try { fc = await loadParcels(); }
@@ -975,6 +1241,14 @@ async function boot() {
     drawBar();
     if (!mine.length || await askSwitch(card)) { setVoter(card); pill("Voter card loaded", 1800); }
   }
+  if (group !== null) {
+    const code = normGroup(group);
+    try {
+      if (await checkGroup(code)) { setGroup(code); pill(`Group ${code} on.`, 2600); }
+      else toast("That group link doesn't match any group. Check the link and open it again.");
+    } catch { toast("Couldn't check the group link. Open it again in a moment."); }
+  }
+  stripParams();
 
   await initMap();
   $("[data-boot]").hidden = true; $("[data-dock]").hidden = false;
@@ -985,6 +1259,7 @@ async function boot() {
   route();
 
   // Location: already allowed -> start; never answered -> the one-sentence note first; declined -> leave it.
+  if (!hasGeo()) { locState = "unsupported"; drawLocate(); return; }
   const perm = await locPermission();
   if (perm === "granted" || (perm !== "denied" && ls.get(LOC_KEY) === "asked")) startWatch();   // seen the note before: no need to repeat it
   else if (perm === "denied") { locState = "denied"; drawLocate(); }
