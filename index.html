@@ -92,14 +92,25 @@ a{color:inherit}
 .timing .k{color:var(--muted);font-size:13px;flex:none}
 .mine{margin-top:6px;font-size:14px;display:flex;align-items:center;gap:7px;min-height:20px}
 .mine b{font-weight:650}
-.cx{border-top:1px solid var(--mist);margin-top:9px;padding-top:7px;font-size:13.5px}
-.cx summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);padding:3px 0}
+.cx,.fold{border-top:1px solid var(--mist);margin-top:9px;padding-top:7px;font-size:13.5px}
+.cx summary,.fold summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);padding:3px 0}
+.fold+.cx{margin-top:4px}
+.fold .counts{margin-top:6px}
+/* the headline result and where you are, at the top of the card */
+.lead{margin-top:9px;font-size:15px;display:flex;align-items:center;gap:8px}
+.lead b{font-weight:650}
+.lead .sw{width:13px;height:13px}
+.lead.none{color:#a19da6;font-size:14px}
+.near{margin-top:6px;font-size:13.5px;color:var(--muted);display:flex;align-items:center;gap:8px;min-height:20px}
+.near .dot{width:9px;height:9px;border-radius:50%;background:#B5B2AD;flex:none;margin:0 2px}
+.near .dot.on{background:#2F6FEB;box-shadow:0 0 0 3px rgba(47,111,235,.18)}
+.near b{color:var(--ink);font-weight:600}
 dl.city{display:grid;grid-template-columns:minmax(110px,42%) 1fr;gap:4px 10px;margin:6px 0 0;font-size:13px}
 dl.city dt{color:var(--muted)}
 dl.city dd{margin:0;word-break:break-word}
 dl.city dd.blank{color:#a19da6;font-style:italic}
 @media (min-width:900px){
-  .card{position:fixed;left:20px;top:20px;width:360px;max-width:none;max-height:calc(100dvh - 40px)}
+  .card{position:fixed;left:20px;top:76px;width:360px;max-width:none;max-height:calc(100dvh - 96px)}
   .card.in{animation-name:cardInSide}
   .maplibregl-ctrl-top-left{top:auto;bottom:0}
 }
@@ -133,7 +144,66 @@ button.mrow:hover{background:var(--mist)}
   background:var(--paper);box-shadow:var(--shadow);display:grid;place-items:center;color:var(--ink)}
 .locate svg{width:21px;height:21px}
 .locate.on{color:#2F6FEB}
-@media (min-width:900px){.locate{right:20px;top:20px}}
+@media (min-width:900px){.locate{right:20px;top:auto;bottom:20px}}
+
+/* what the map shows: a row above the bar on phones, a panel at the top right on wide screens */
+.vrow{display:flex;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none;padding:3px 2px 5px;margin:-3px 0 -5px}
+.vrow::-webkit-scrollbar{display:none}
+.vrow .chips{flex-wrap:nowrap;gap:6px}
+.vrow .chips button{flex:none;border-color:transparent;box-shadow:var(--shadow)}
+.vrow .chips button[aria-pressed="true"]{border-color:var(--ink)}
+.vrow .gfchip{flex:none;display:inline-flex;align-items:center;min-height:34px;padding:0 4px 0 12px;border-radius:999px;background:var(--ink);color:#fff;font-size:13.5px;font-weight:550;box-shadow:var(--shadow)}
+.vrow .gfchip button{border:0;background:none;color:#fff;width:30px;min-height:30px;display:grid;place-items:center;border-radius:999px}
+.vrow .gfchip svg{width:14px;height:14px}
+.seg{display:inline-flex;flex:none;background:var(--paper);border-radius:999px;box-shadow:var(--shadow);padding:3px}
+.seg button{border:0;background:none;min-height:30px;padding:0 13px;border-radius:999px;font-size:13.5px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.vpanel{display:none}
+@media (min-width:900px){
+  .vrow{display:none!important}
+  .vpanel{display:block;position:fixed;z-index:9;right:20px;top:20px;width:290px;background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:12px 14px 14px}
+  .vpanel .seg{display:flex;box-shadow:none;background:var(--mist)}
+  .vpanel .seg button{flex:1}
+  .vpanel .fh{font-weight:600;font-size:14px;margin:14px 0 8px}
+  .vpanel .fhint{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.35}
+  .vpanel .gon{flex-wrap:wrap;row-gap:6px}
+  .vpanel .gon b{white-space:nowrap}
+}
+
+/* search: addresses and parcel numbers, from the lots already loaded */
+.search{position:fixed;z-index:12;left:12px;right:68px;top:calc(env(safe-area-inset-top,0px) + 12px)}
+.search form{position:relative;margin:0}
+.search .si{position:absolute;left:13px;top:12px;width:20px;height:20px;color:var(--muted);pointer-events:none}
+.search input{width:100%;height:44px;border:0;border-radius:14px;background:var(--paper);box-shadow:var(--shadow);padding:0 40px 0 41px;font-size:16px;-webkit-appearance:none;appearance:none}
+.search input::-webkit-search-cancel-button{display:none}
+.search input::placeholder{color:var(--muted)}
+.search input:focus{outline:2.5px solid var(--ink);outline-offset:0}
+.search .sx{position:absolute;right:4px;top:4px;width:36px;height:36px;border:0;border-radius:10px;background:none;display:grid;place-items:center;color:var(--muted)}
+.search .sx svg{width:17px;height:17px}
+.sres{margin-top:6px;background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:5px;max-height:min(360px,calc(100dvh - 140px));overflow:auto}
+.sres button{display:block;width:100%;text-align:left;border:0;background:none;border-radius:10px;padding:8px 10px;font-size:14.5px;line-height:1.3}
+.sres button:hover,.sres button.hi{background:var(--mist)}
+.sres button span{display:block;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sres p{margin:0;padding:9px 10px;font-size:14px;color:var(--muted)}
+@media (min-width:900px){.search{left:20px;right:auto;top:20px;width:360px}}
+
+/* after the first vote: save your voter card. Never blocks the map. */
+.nudge{position:fixed;z-index:30;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);background:var(--paper);border-radius:var(--r-card);
+  box-shadow:var(--shadow);padding:12px 10px 12px 14px;display:flex;gap:10px;align-items:flex-start;animation:nudgeIn .25s ease-out}
+.nudge p{margin:0;font-size:14px;color:var(--muted);line-height:1.4}
+.nudge p b{display:block;color:var(--ink);font-size:15px;font-weight:650;margin-bottom:1px}
+.nudge .acts{margin-top:10px}
+@keyframes nudgeIn{from{transform:translateY(-12px);opacity:0}to{transform:none;opacity:1}}
+@media (min-width:900px){.nudge{left:50%;right:auto;width:420px;translate:-50% 0}}
+
+/* first visit */
+.wel h2{font-size:19px;letter-spacing:-.01em;margin:0 0 6px;line-height:1.25}
+.wel .steps{margin:10px 0 12px;padding:0;list-style:none;counter-reset:st;display:grid;gap:7px}
+.wel .steps li{counter-increment:st;display:flex;gap:10px;align-items:baseline}
+.wel .steps li::before{content:counter(st);flex:none;width:22px;height:22px;border-radius:50%;background:var(--mist);display:grid;place-items:center;font-size:12.5px;font-weight:650;color:var(--muted);position:relative;top:-1px}
+.wel .wloc{background:var(--mist);border-radius:12px;padding:12px 12px 12px}
+.wel .wloc p{margin:0 0 10px}
+.wel .wfoot{margin:10px 0 0;font-size:14px}
 .zhint{position:fixed;z-index:11;left:50%;bottom:calc(var(--dock-h,80px) + 14px);transform:translate(-50%,6px);background:rgba(29,26,38,.86);color:#fff;
   border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
 .zhint.show{opacity:1;transform:translate(-50%,0)}
@@ -199,11 +269,22 @@ button.mrow:hover{background:var(--mist)}
 <body>
 <div id="map" aria-label="Map of the city's land bank lots"></div>
 <button class="locate" data-locate aria-label="Center the map on me" hidden></button>
+<div class="search" data-search hidden>
+  <form role="search" data-search-form autocomplete="off">
+    <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+    <input type="search" data-search-in placeholder="Search an address or parcel" aria-label="Search an address or parcel number" enterkeyhint="search" spellcheck="false" autocapitalize="off" aria-controls="sres" aria-expanded="false">
+    <button type="button" class="sx" data-search-clear aria-label="Clear the search" hidden></button>
+  </form>
+  <div class="sres" id="sres" data-sres hidden></div>
+</div>
+<div class="vpanel" data-vpanel aria-label="What the map shows"></div>
+<div class="nudge" data-nudge role="status" hidden></div>
 <div class="zhint" data-zhint role="status"></div>
 <div class="dock" data-dock hidden>
   <section class="card" data-card hidden aria-label="Selected lot"></section>
   <div class="sheet" data-sheet hidden></div>
   <div class="gchip" data-gchip hidden></div>
+  <div class="vrow" data-vrow aria-label="What the map shows"></div>
   <nav class="vbar" data-bar aria-label="Vote"></nav>
 </div>
 <div class="page" data-page hidden></div>
@@ -237,12 +318,19 @@ button.mrow:hover{background:var(--mist)}
    page version, why there was no location, and the device's group code.
    Group codes (MAPLE-RIVER-42) gather a group's votes; they never change
    counts, colors or which votes come first.
+   The screen (Oct 28): a first-visit sheet (what this is, how to vote,
+   the location question); after the first saved vote, a note at the top
+   to save the voter card (never blocks voting); search by address or
+   parcel, matched in the page; Everyone | Mine and Show votes cast in a
+   row above the bar on phones, a panel on wide screens; the lot card
+   leads with the result and where you are now, tier rows and timing
+   folded under "How these votes were cast".
 
    The database (schema.sql) is reached only through ten functions:
    cast_vote, lot_tallies, my_votes, lot_info, export_lots, export_votes,
    create_group, group_exists, export_group_lots, export_group_votes.
    ===================================================================== */
-const PAGE_VERSION = "2026-10-26";   // stored with each vote; change it when the page changes
+const PAGE_VERSION = "2026-10-28";   // stored with each vote; change it when the page changes
 const CONFIG = {
   parcelsUrl: "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/City_Landbank/FeatureServer/0",
   idField: "parcelpin", addressField: "par_addr_all",
@@ -441,7 +529,7 @@ function restartWatch() {
   if (watchId !== null) { try { navigator.geolocation.clearWatch(watchId); } catch {} watchId = null; }
   ls.set(LOC_KEY, "asked"); startWatch();
 }
-function locChanged() { drawLocate(); if (S.sheet === "why" && locStatus() !== whyShown) drawWhy(); }
+function locChanged() { drawLocate(); updateNear(); if (S.sheet === "why" && locStatus() !== whyShown) drawWhy(); }
 // Why there's no location, as stored with the vote: ok | declined | denied | unavailable | timeout | unsupported | waiting.
 function locStatus() {
   if (fix) return "ok";
@@ -465,6 +553,46 @@ function speedNow() {
 function fixArgs() {
   if (!fix) return {};
   return { lat: fix.lat, lng: fix.lng, accuracy_m: Math.round(fix.acc ?? 0), fix_age_s: Math.max(0, Math.round((Date.now() - fix.t) / 1000)), ...speedNow() };
+}
+// About how far the voter is from a lot, in feet, rounded the way the record rounds it (round_distance_ft):
+// 0 on the lot, the nearest 10 ft under 1,000 ft, the nearest 100 ft to 2 mi, the nearest half mile beyond.
+// Only for the card's "You're about 340 ft away" line, before voting; the record works out each vote's own distance.
+function feetToLot(id) {
+  const f = S.byId.get(id); if (!f || !fix) return null;
+  const M = 111320, kx = Math.cos(fix.lat * Math.PI / 180), px = fix.lng * kx * M, py = fix.lat * M;
+  const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+  let best = Infinity;
+  for (const poly of polys) {
+    let inside = false;
+    for (const ring of poly) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const ax = ring[i][0] * kx * M, ay = ring[i][1] * M, bx = ring[j][0] * kx * M, by = ring[j][1] * M;
+      if ((ay > py) !== (by > py) && px < (bx - ax) * (py - ay) / (by - ay) + ax) inside = !inside;
+      const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy, u = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+      best = Math.min(best, Math.hypot(px - ax - u * dx, py - ay - u * dy));
+    }
+    if (inside) return 0;
+  }
+  const ft = best * 3.28084;
+  return ft < 1000 ? Math.round(ft / 10) * 10 : ft <= 10560 ? Math.round(ft / 100) * 100 : Math.round(ft / 2640) * 2640;
+}
+// The card's line about where you are, so you know before voting: "You're about 340 ft away: on the block".
+// Past 500 ft it gives the distance only; whether you're in the lot's neighborhood or ward is the record's to work out.
+function nearHtml(id) {
+  const st = locStatus();
+  if (st === "ok") {
+    const d = feetToLot(id); if (d === null) return "";
+    if (d === 0) return `<i class="dot on"></i><span><b>You're on this lot</b></span>`;
+    const t = d <= 200 ? "at the lot" : d <= 500 ? "on the block" : "";
+    return `<i class="dot on"></i><span>You're about ${esc(fmtDist(d))} away${t ? `: <b>${t}</b>` : ""}</span>`;
+  }
+  if (st === "waiting") return `<i class="dot"></i><span>Finding your location…</span>`;
+  if (st === "unsupported") return `<i class="dot"></i><span>This browser can't share location</span>`;
+  const why = S.mine.get(id)?.tier === "none" ? "" : ` · <button class="why" data-why>Why?</button>`;   // your vote's line has one already
+  return `<i class="dot"></i><span>${st === "declined" ? "Your location is off" : "No location"}${why}</span>`;
+}
+function updateNear() {
+  const el = $("[data-near]"); if (!el || !S.sel) return;
+  const h = nearHtml(S.sel); if (el.innerHTML !== h) el.innerHTML = h;
 }
 // The computer's system, for the Why? sheet's settings path.
 function detectOS() {
@@ -581,6 +709,7 @@ const S = {
   group: (v => typeof v === "string" && GROUP_RE.test(v) ? v : null)(ls.get(GROUP_KEY)),   // this device's group code
   groupFilter: null,     // Show votes cast > Group: only that group's votes (this visit only)
   openedRecord: false,   // "City record" was opened on the selected lot's card
+  tallyOpen: false,      // "How these votes were cast" stays open from lot to lot once opened (this visit)
   sel: null, sheet: null, page: null
 };
 let gl = null;
@@ -654,6 +783,7 @@ function vote(key) {
       if (r.choice) S.mine.set(id, { choice: r.choice, d: r.distance_ft ?? null, out: !!r.outside_city, tier: r.tier, group: r.group_code ?? null });
       else S.mine.delete(id);
     }
+    if (r.choice) maybeNudge();
     return refreshTallies().catch(() => {});
   }, e => {
     if (pending.get(id)?.choice === choice) {
@@ -771,24 +901,26 @@ function paint() {
   gl.getSource("vpts").setData({ type: "FeatureCollection", features: pts });
 }
 function showMe() { gl?.getSource("me")?.setData(fix ? { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [fix.lng, fix.lat] } }] } : EMPTY); }
-function select(id) {
-  if (S.sel === id) return;
+function select(id, zoom) {
+  if (S.sel === id) { if (id && zoom) keepInView(id, zoom); return; }
   if (S.sel && gl) gl.setFeatureState({ source: "parcels", id: S.sel }, { s: false });
   S.sel = id; S.openedRecord = false;
   if (id && gl) gl.setFeatureState({ source: "parcels", id }, { s: true });
   if (id) { closeSheet(); loadInfo(id); }
   drawBar(); drawCard(true);
-  if (id) keepInView(id);
+  if (id) keepInView(id, zoom);
 }
-// Keep the selected lot in view: right of the card on wide screens, above the card and bar on phones.
-function keepInView(id) {
+// Keep the selected lot in view: between the card and the panel on wide screens, between the search and the card
+// on phones. With zoom (a search result), always go there at that zoom.
+function keepInView(id, zoom) {
   if (!gl) return;
   const p = S.byId.get(id).properties, pt = gl.project([p.cx, p.cy]), W = innerWidth, H = innerHeight, wide = isWide();
   const card = $("[data-card]"), dockTop = (wide ? $("[data-bar]") : card.hidden ? $("[data-bar]") : card).getBoundingClientRect().top;
-  const r = wide ? { left: (!card.hidden ? card.getBoundingClientRect().right : 0) + 24, right: W - 70, top: 24, bottom: dockTop - 16 }
+  const panel = $("[data-vpanel]").getBoundingClientRect();
+  const r = wide ? { left: (!card.hidden ? card.getBoundingClientRect().right : 0) + 24, right: (panel.width ? panel.left : W - 50) - 24, top: 24, bottom: dockTop - 16 }
     : { left: 20, right: W - 20, top: 70, bottom: dockTop - 16 };
-  if (pt.x > r.left && pt.x < r.right && pt.y > r.top && pt.y < r.bottom) return;
-  gl.easeTo({ center: [p.cx, p.cy], offset: [(r.left + r.right) / 2 - W / 2, (r.top + r.bottom) / 2 - H / 2], duration: calm() ? 0 : 350 });
+  if (!zoom && pt.x > r.left && pt.x < r.right && pt.y > r.top && pt.y < r.bottom) return;
+  gl.easeTo({ center: [p.cx, p.cy], zoom: zoom ?? gl.getZoom(), offset: [(r.left + r.right) / 2 - W / 2, (r.top + r.bottom) / 2 - H / 2], duration: calm() ? 0 : zoom ? 600 : 350 });
 }
 
 /* ------------------------------------------------------------- the screen */
@@ -797,10 +929,26 @@ function drawBar() {
   bar.classList.toggle("lit", !!S.sel);
   bar.innerHTML = CHOICES.map((c, i) => `<button class="sq${cur === c.key ? " cur" : ""}${S.sel && pending.has(S.sel) && cur === c.key ? " busy" : ""}" data-choice="${c.key}" style="--c:${c.color}"
       aria-pressed="${cur === c.key}" aria-label="${esc(c.label)}${cur === c.key ? " (your vote; tap to clear)" : ""}" title="${esc(c.label)} (${i + 1})">${esc(c.label)}</button>`).join("")
-    + `<button class="ib" data-view aria-pressed="${S.view === "mine"}" aria-label="${S.view === "mine" ? "Showing your votes. Show everyone's" : "Showing everyone's votes. Show yours"}" title="${S.view === "mine" ? "Your votes" : "Everyone's votes"}">${ICON.mine}</button>`
     + `<button class="ib" data-more aria-label="More" aria-haspopup="true" aria-expanded="${S.sheet === "more"}">${ICON.more}</button>`;
-  drawGroupChip();
+  drawGroupChip(); rowVis();
 }
+// What the map shows: Everyone | Mine, and Show votes cast. A row above the bar on phones (hidden while a lot
+// or a sheet is open, so it never covers what it changes), a panel at the top right on wide screens.
+const segHtml = () => `<div class="seg" role="group" aria-label="Whose votes"><button data-view="all" aria-pressed="${S.view === "all"}">Everyone</button><button data-view="mine" aria-pressed="${S.view === "mine"}">Mine</button></div>`;
+// widest first, so the default (From anywhere) sits right after Everyone | Mine and a phone row never opens scrolled
+const CHIP_ORDER = ["all", "city", "ward", "neighborhood", "block", "lot"];
+const chipsHtml = () => `<div class="chips" role="group" aria-label="Show votes cast">${CHIP_ORDER.map(k => `<button data-filter="${k}" aria-pressed="${S.farthest === k}">${esc(FILTER_LABEL[k])}</button>`).join("")}</div>`;
+function drawView() {
+  const row = $("[data-vrow]"), pan = $("[data-vpanel]");
+  row.innerHTML = segHtml() + chipsHtml() + (S.groupFilter ? `<span class="gfchip">Group ${esc(S.groupFilter)}<button data-gfilter-off aria-label="Show all groups">${ICON.close}</button></span>` : "");
+  pan.innerHTML = `${segHtml()}<div class="fh" id="vp-h">Show votes cast</div>${chipsHtml()}<div data-gfilter>${groupFilterHtml()}</div>
+    <div class="fhint">Changes only what you see, not the votes. On every lot, the votes cast closest to it set its color.</div>`;
+  $$("button", pan).forEach(b => b.closest(".chips") && b.setAttribute("aria-describedby", "vp-h"));
+  rowVis();
+  const on = $("[aria-pressed=true][data-filter]", row);
+  if (on && on.offsetLeft + on.offsetWidth > row.clientWidth) row.scrollLeft = on.offsetLeft - 60;   // a remembered filter off the edge
+}
+function rowVis() { const row = $("[data-vrow]"); if (row) { row.hidden = !!(S.sel || S.sheet || S.page); setDockH(); } }
 // "Group: MAPLE-RIVER-42 ×" above the bar while this device has a group on. × turns it off.
 function drawGroupChip() {
   const el = $("[data-gchip]"); if (!el) return;
@@ -825,7 +973,7 @@ function myVoteText(m, info) {
     <span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· ${esc(m.out ? "from outside Cleveland" : where)}${grp}${why}</span></span>`;
 }
 function drawCard(fresh) {
-  const el = $("[data-card]");
+  const el = $("[data-card]"); rowVis();
   if (!S.sel || S.page || S.sheet === "why") { el.hidden = true; setDockH(); return; }
   const f = S.byId.get(S.sel), p = f.properties, t = S.tally.get(S.sel), m = S.mine.get(S.sel), info = S.info.get(S.sel);
   const open = !fresh && el.querySelector("details")?.open;   // a newly selected lot starts with its city record folded
@@ -840,35 +988,53 @@ function drawCard(fresh) {
   const [timed, med, pct] = t?.timing || [0, null, null];
   const timing = !t ? "" : !timed ? "each vote was the voter's first"
     : `${timed > 1 ? "median " : ""}${fmtSecs(med)} after the voter's previous vote${pct === null ? "" : ` · ${pctText(pct)}`}`;
+  const total = t ? sum(t.counts) : 0;
   el.innerHTML = `<div class="ch"><div class="ct"><b>${esc(p.a)}</b><div class="pin">Parcel ${esc(p.d)}</div>
       ${place ? `<div class="place">${esc(place)}</div>` : ""}</div>
       <button class="nx" data-close aria-label="Close">${ICON.close}</button></div>
     ${S.groupFilter ? `<div class="note">Showing group ${esc(S.groupFilter)}'s votes only.</div>` : ""}
-    ${t ? `<div class="counts" aria-label="Votes by where they were cast">${rows}</div>
-      ${t.tier ? "" : `<div class="note">None of these votes were cast close enough to show with "${esc(FILTER_LABEL[S.farthest])}".</div>`}
-      ${timing ? `<div class="timing" title="Seconds between each vote and the same voter's previous vote, compared with every vote in the record"><span class="k">Timing</span><span>${esc(timing)}</span></div>` : ""}`
-      : `<div class="counts"><span class="v none">${S.groupFilter ? "No votes from this group" : "No votes yet"}</span></div>`}
+    ${leadHtml(t, info)}
+    <div class="near" data-near>${nearHtml(S.sel)}</div>
     <div class="mine" data-mine>${myVoteText(m, info)}</div>
+    ${t ? `<details class="fold" data-tally${S.tallyOpen ? " open" : ""}><summary>How ${total === 1 ? "this vote was" : `these ${fmt(total)} votes were`} cast</summary>
+      <div class="counts" aria-label="Votes by where they were cast">${rows}</div>
+      ${timing ? `<div class="timing" title="Seconds between each vote and the same voter's previous vote, compared with every vote in the record"><span class="k">Timing</span><span>${esc(timing)}</span></div>` : ""}</details>` : ""}
     <details class="cx"${open ? " open" : ""}><summary>City record</summary>
       <dl class="city">${S.fields.map(fd => { const v = val(p.city[fd.name]); return `<dt>${esc(fd.alias)}</dt><dd class="${v === null ? "blank" : ""}">${v === null ? "Blank" : esc(v)}</dd>`; }).join("")}</dl></details>`;
   if (fresh && el.hidden) { el.classList.remove("in"); void el.offsetWidth; el.classList.add("in"); }
   el.hidden = false;
   setDockH();
 }
+// The card's headline: the result that sets the lot's color, from the votes that decide it.
+// "Open space · 3 of 4 votes cast at the lot", "Tied · 4 votes cast on the block", "No votes yet".
+function leadHtml(t, info) {
+  if (!t) return `<div class="lead none">${S.groupFilter ? "No votes from this group" : "No votes yet"}</div>`;
+  if (!t.tier) return `<div class="note">None of these votes were cast close enough to show with "${esc(FILTER_LABEL[S.farthest])}".</div>`;
+  const i = TK[t.tier].rank - 1, a = t.counts.slice(i * 3, i * 3 + 3), n = sum(a), c = CK[t.lead];
+  const where = t.tier === "none" ? "with no location" : `cast ${TK[t.tier].phrase(info)}`;
+  const k = CHOICES.findIndex(x => x.key === t.lead);
+  const detail = t.lead === "tie" || n === 1 ? `${fmt(n)} vote${n === 1 ? "" : "s"} ${where}` : `${fmt(a[k])} of ${fmt(n)} votes ${where}`;
+  return `<div class="lead"><i class="sw${t.display === "solid" ? "" : " h"}" style="--c:${c.color};background:${c.color}"></i>
+    <span><b>${esc(c.label)}</b> <span class="muted">· ${esc(detail)}</span></span></div>`;
+}
+const FILTER_SAYS = { lot: "Showing votes cast at the lot", block: "Showing votes cast on the block or closer", neighborhood: "Showing votes cast in the neighborhood or closer",
+  ward: "Showing votes cast in the ward or closer", city: "Showing votes cast in Cleveland", all: "Showing votes cast from anywhere" };
 const FILTER_LABEL = { lot: "At the lot", block: "On the block", neighborhood: "In the neighborhood", ward: "In the ward", city: "In Cleveland", all: "From anywhere" };
 function setDockH() { const d = $("[data-dock]"); if (d) document.documentElement.style.setProperty("--dock-h", `${d.offsetHeight}px`); }
 
 /* sheets: More, the location note, the card question */
-function closeSheet() { const was = S.sheet; S.sheet = null; const s = $("[data-sheet]"); s.hidden = true; s.innerHTML = ""; drawBar(); if (was === "why") drawCard(); }
+function closeSheet() {
+  const was = S.sheet; S.sheet = null; const s = $("[data-sheet]"); s.hidden = true; s.innerHTML = ""; drawBar(); if (was === "why") drawCard();
+  if (was === "welcome") ls.set(WELCOME_KEY, true);   // however it closed: a choice, Esc, a tap on a lot, How votes count
+}
 function openMore() {
   S.sheet = "more"; if (S.sel) select(null);
   const s = $("[data-sheet]");
   s.innerHTML = `<div class="key"><div class="ks">${CHOICES.map(c => `<span><i class="sw" style="background:${c.color}"></i>${esc(c.label)}</span>`).join("")}<span><i class="sw" style="background:${TIE.color}"></i>Tied</span></div>
       <div class="ks muted"><span><i class="sw" style="background:#55525A"></i>Solid: someone voted at the lot</span><span><i class="sw h" style="--c:#55525A"></i>Hatched: the closest votes came from farther away</span></div></div>
-    <div class="filt" role="group" aria-labelledby="filt-h"><div class="fh" id="filt-h">Show votes cast</div>
-      <div class="chips">${FILTERS.map(k => `<button data-filter="${k}" aria-pressed="${S.farthest === k}">${esc(FILTER_LABEL[k])}</button>`).join("")}</div>
+    ${isWide() ? "" : `<div class="filt" role="group" aria-labelledby="filt-h"><div class="fh" id="filt-h">Show one group's votes</div>
       <div data-gfilter>${groupFilterHtml()}</div>
-      <div class="fhint">Changes only what you see, not the votes. On every lot, the votes cast closest to it set its color.</div></div>
+      <div class="fhint">Changes only what you see, not the votes.</div></div>`}
     ${!fix ? `<button class="mrow" data-use-loc>Use my location ${ICON.next}</button>` : ""}
     <button class="mrow" data-go="group">Group ${ICON.next}</button>
     <button class="mrow" data-share>Share the map ${ICON.next}</button>
@@ -886,7 +1052,7 @@ function groupFilterHtml(msg = "") {
 }
 async function setGroupFilter(code) {
   S.groupFilter = code || null;
-  const box = $("[data-gfilter]"); if (box) box.innerHTML = groupFilterHtml();
+  drawView(); $$("[data-gfilter]").forEach(b => { b.innerHTML = groupFilterHtml(); });
   paint();   // your-votes view changes at once
   try { if (await refreshTallies()) { paint(); drawCard(); } } catch { toast("Couldn't reach the record. Try again in a moment."); }
 }
@@ -960,6 +1126,7 @@ async function setFarthest(k) {
   if (!FILTERS.includes(k) || k === S.farthest) return;
   S.farthest = k; ls.set(FARTHEST_KEY, k);
   $$("[data-filter]").forEach(b => b.setAttribute("aria-pressed", b.dataset.filter === k));
+  if (!isWide()) pill(FILTER_SAYS[k], 1800);   // phones have no room for the hint, so say what it does
   paint();   // your-votes view changes at once
   try { if (await refreshTallies()) { paint(); drawCard(); } } catch { toast("Couldn't reach the record. Try again in a moment."); }
 }
@@ -970,6 +1137,115 @@ async function shareMap() {
     catch (e) { if (e && e.name === "AbortError") return; }
   }
   pill(await copyText(url) ? "Link to the map copied" : "Couldn't copy the link", 2200);
+}
+
+/* search: addresses and parcel numbers, matched in the page against the lots already loaded (no geocoder,
+   nothing sent anywhere). "1234 e 79" finds "1234 E 79th St"; "105-12-034" or "10512" finds parcels. */
+const ABBR = { east: "e", west: "w", north: "n", south: "s", street: "st", avenue: "ave", av: "ave", road: "rd", drive: "dr", place: "pl",
+  court: "ct", boulevard: "blvd", lane: "ln", parkway: "pkwy", terrace: "ter", square: "sq" };
+const words = s => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter(Boolean).map(w => ABBR[w] || w.replace(/^(\d+)(st|nd|rd|th)$/, "$1"));
+let SEARCH = [];
+function buildSearch() {
+  SEARCH = S.fc.features.map(f => { const p = f.properties; return { id: p.id, a: p.a, d: p.d, w: words(p.a), near: /^(Next to|Near|Lot on|Parcel) /.test(p.a) }; });
+}
+function searchLots(q) {
+  const pin = normId(q), qw = words(q), out = [];
+  if (!pin) return out;
+  for (const it of SEARCH) {
+    let score = null;
+    if (pin.length >= 3 && /\d/.test(pin) && it.id.startsWith(pin)) score = 0;
+    else if (qw.length && qw.every(w => it.w.some(x => x.startsWith(w)))) {
+      const inOrder = qw.every((w, i) => it.w[i]?.startsWith(w));
+      score = (inOrder ? 1 : 2) + (it.near ? 2 : 0);
+    }
+    if (score !== null) out.push([score, it]);
+  }
+  return out.sort((x, y) => x[0] - y[0] || x[1].a.localeCompare(y[1].a, undefined, { numeric: true })).slice(0, 8).map(x => x[1]);
+}
+let searchHits = [], searchHi = 0;
+function drawSearch() {
+  const inp = $("[data-search-in]"), box = $("[data-sres]"), q = inp.value.trim();
+  $("[data-search-clear]").hidden = !inp.value;
+  if (!q || document.activeElement !== inp) { box.hidden = true; inp.setAttribute("aria-expanded", "false"); return; }
+  searchHits = searchLots(q); searchHi = Math.min(searchHi, Math.max(0, searchHits.length - 1));
+  box.innerHTML = searchHits.length ? searchHits.map((h, i) => `<button type="button" data-lot="${esc(h.id)}" class="${i === searchHi ? "hi" : ""}">${esc(h.a)}<span>Parcel ${esc(h.d)}</span></button>`).join("")
+    : `<p>No lot matches. Try a house number and street, or a parcel number.</p>`;
+  box.hidden = false; inp.setAttribute("aria-expanded", "true");
+}
+function goLot(id) {
+  const inp = $("[data-search-in]"), f = S.byId.get(id); if (!f) return;
+  inp.value = f.properties.a; inp.blur(); drawSearch();
+  if (S.page) closePage();
+  if (S.sheet && S.sheet !== "switch") closeSheet();
+  select(id, Math.max(gl.getZoom(), 17.5));
+}
+function clearSearch() { const inp = $("[data-search-in]"); inp.value = ""; searchHi = 0; drawSearch(); inp.focus(); }
+
+/* first visit: what this is, how to vote, and the location question (it replaces the one-sentence note) */
+const WELCOME_KEY = "plvt:welcomed";
+function openWelcome(perm) {
+  S.sheet = "welcome";
+  const s = $("[data-sheet]");
+  const loc = !hasGeo() ? `<p>This browser can't share location, so your votes won't show how close you were to the lot.</p><div class="acts"><button class="btn btn-dark btn-sm" data-welcome-ok>Start</button></div>`
+    : perm === "denied" ? `<p>Location is off for this site, so your votes won't show how close you were to the lot.</p><div class="acts"><button class="btn btn-dark btn-sm" data-welcome-ok>Start</button></div>`
+    : perm === "granted" ? `<p>Your location is on, so each vote shows how close you were to the lot. We keep the distance, not where you are.</p><div class="acts"><button class="btn btn-dark btn-sm" data-welcome-ok>Start</button></div>`
+    : `<p>Your location shows whether you're at the lot. We keep the distance, not where you are.</p><div class="acts"><button class="btn btn-dark btn-sm" data-loc-yes>Use my location</button><button class="btn btn-sm" data-loc-no>Not now</button></div>`;
+  s.innerHTML = `<div class="pad wel"><h2>${esc(CONFIG.title)}</h2>
+    <p>Say what should happen to Cleveland's city-owned vacant lots. Anyone can vote on any lot, and every vote is public.</p>
+    <ol class="steps"><li>Find a lot: zoom in, or search an address.</li><li>Tap the lot, then pick a choice below. Tap it again to clear it.</li></ol>
+    <div class="wloc">${loc}</div>
+    <p class="wfoot"><button class="why" data-go="how">How votes count</button></p></div>`;
+  s.hidden = false; drawBar();
+  $("button.btn-dark", s)?.focus({ preventScroll: true });
+}
+
+/* after the first vote that saves: a note at the top to save the voter card. Once per device, never for someone
+   who came with a card or has opened theirs, and it never blocks the map or the next vote. */
+const NUDGE_KEY = "plvt:card-nudge";
+function maybeNudge() {
+  if (ls.get(NUDGE_KEY) || arrivedVia === "card_link") return;
+  ls.set(NUDGE_KEY, "shown");
+  const n = $("[data-nudge]");
+  n.innerHTML = `<div><p><b>Your vote is saved on this device.</b>Save your voter card to see or change your votes on another device.</p>
+    <div class="acts"><button class="btn btn-dark btn-sm" data-go="card">Save your card</button></div></div>
+    <button class="nx" data-nudge-close aria-label="Dismiss">${ICON.close}</button>`;
+  n.hidden = false;
+}
+const hideNudge = () => { const n = $("[data-nudge]"); n.hidden = true; n.innerHTML = ""; };
+
+/* the voter card as an image: the QR code, the link, and the warning. Phones get the share sheet
+   (Save Image goes to Photos); computers download a PNG. */
+async function cardImage() {
+  const qrcode = await loadQr(), q = qrcode(0, "M"); q.addData(cardLink()); q.make();
+  try { await Promise.all(["700 30px", "400 18px", "600 17px"].map(f => document.fonts.load(`${f} "Public Sans"`))); } catch {}
+  const W = 600, H = 820, k = 2, cv = document.createElement("canvas"); cv.width = W * k; cv.height = H * k;
+  const x = cv.getContext("2d"), F = (w, px) => `${w} ${px}px ${getComputedStyle(document.body).fontFamily}`;
+  x.scale(k, k); x.fillStyle = "#fff"; x.fillRect(0, 0, W, H); x.textAlign = "center";
+  x.fillStyle = "#1D1A26"; x.font = F(700, 30); x.fillText("Your voter card", W / 2, 76);
+  x.fillStyle = "#67646C"; x.font = F(400, 18); x.fillText(CONFIG.title, W / 2, 108);
+  const n = q.getModuleCount(), size = 380, cell = size / n, ox = (W - size) / 2, oy = 146;
+  x.fillStyle = "#1D1A26";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) x.fillRect(ox + c * cell, oy + r * cell, cell + 0.5, cell + 0.5);
+  x.font = F(500, 17); x.fillText("Scan it or open the link to get your votes", W / 2, 586); x.fillText("back on any device.", W / 2, 611);
+  const link = cardLink(), cut = link.indexOf("?");
+  x.fillStyle = "#67646C"; x.font = F(400, 13); x.fillText(link.slice(0, cut), W / 2, 662); x.fillText(link.slice(cut), W / 2, 682);
+  x.fillStyle = "#1D1A26"; x.font = F(650, 17); x.fillText("Anyone with it can vote as you.", W / 2, 744);
+  return new Promise((ok, no) => cv.toBlob(b => b ? ok(b) : no(new Error("no image")), "image/png"));
+}
+async function saveCardImage(btn) {
+  const was = btn.textContent; btn.disabled = true; btn.textContent = "Preparing…";
+  let said = was;
+  try {
+    const blob = await cardImage(), name = "public-land-voter-card.png";
+    const file = new File([blob], name, { type: "image/png" });
+    if (matchMedia("(pointer: coarse)").matches && navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "Your voter card" }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    const url = URL.createObjectURL(blob), a = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+    said = "Saved";
+  } catch { said = "Couldn't make the image"; }
+  finally { btn.textContent = said; setTimeout(() => { if (btn.isConnected) { btn.textContent = was; btn.disabled = false; } }, said === was ? 0 : 2200); }
 }
 
 /* the card switch: a card link with a different ID on a device that already has votes */
@@ -991,7 +1267,7 @@ function askSwitch(newId) {
 }
 
 /* pages over the map */
-function closePage() { S.page = null; const p = $("[data-page]"); p.hidden = true; p.innerHTML = ""; drawCard(); if (location.hash) history.replaceState(history.state, "", location.href.split("#")[0]); }
+function closePage() { S.page = null; const p = $("[data-page]"); p.hidden = true; p.innerHTML = ""; drawCard(); rowVis(); if (location.hash) history.replaceState(history.state, "", location.href.split("#")[0]); }
 function pageTop(title) { return `<div class="top"><h1>${esc(title)}</h1><button class="nx" data-close-page aria-label="Back to the map">${ICON.close}</button></div>`; }
 let qrP = null;
 function loadQr() {
@@ -1013,12 +1289,12 @@ async function copyText(text) {
   } catch { return false; }
 }
 async function openCard() {
-  S.page = "card"; select(null); closeSheet();
+  S.page = "card"; select(null); closeSheet(); hideNudge(); ls.set(NUDGE_KEY, "seen-card");
   const p = $("[data-page]"), link = cardLink();
   p.innerHTML = `<div class="in">${pageTop("Your voter card")}<div class="panel vc">
     <div class="qr" data-qr aria-label="QR code of your voter card link" role="img"></div>
-    <button class="btn btn-dark" data-copy>Copy link</button>
-    <p>Save this link or screenshot the code to get your votes back on any device. Anyone with it can vote as you.</p>
+    <div class="acts"><button class="btn btn-dark" data-copy>Copy link</button><button class="btn" data-save-card>Save image</button></div>
+    <p>Save this link or the image to get your votes back on any device. Anyone with it can vote as you.</p>
     <div class="link">${esc(link)}</div></div></div>`;
   p.hidden = false; p.scrollTop = 0; drawCard();
   try { $("[data-qr]", p).innerHTML = await qrSvg(link); } catch { $("[data-qr]", p).innerHTML = `<span class="muted">The code didn't load. The link below works the same way.</span>`; }
@@ -1169,8 +1445,16 @@ function wire() {
     if (t.matches("[data-choice]")) return vote(t.dataset.choice);
     if (t.matches("[data-close]")) return select(null);
     if (t.matches("[data-more]")) return S.sheet === "more" ? closeSheet() : openMore();
-    if (t.matches("[data-view]")) { S.view = S.view === "mine" ? "all" : "mine"; drawBar(); paint(); pill(S.view === "mine" ? "Your votes" : "Everyone's votes", 1200); return; }
-    if (t.matches("[data-go]")) { location.hash = `#/${t.dataset.go}`; return; }
+    if (t.matches("[data-view]")) {
+      if (t.dataset.view === S.view) return;
+      S.view = t.dataset.view; $$("[data-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === S.view)); paint(); return;
+    }
+    if (t.matches("[data-lot]")) return goLot(t.dataset.lot);
+    if (t.matches("[data-search-clear]")) return clearSearch();
+    if (t.matches("[data-welcome-ok]")) return closeSheet();
+    if (t.matches("[data-nudge-close]")) return hideNudge();
+    if (t.matches("[data-save-card]")) return saveCardImage(t);
+    if (t.matches("[data-go]")) { if (t.closest("[data-nudge]")) hideNudge(); location.hash = `#/${t.dataset.go}`; return; }
     if (t.matches("[data-close-page]")) return closePage();
     if (t.matches("[data-use-loc]")) { closeSheet(); return useLocFromMore(); }
     if (t.matches("[data-loc-yes]")) { ls.set(LOC_KEY, "asked"); closeSheet(); return startWatch(); }
@@ -1193,11 +1477,25 @@ function wire() {
   });
   document.addEventListener("submit", e => {
     const f = e.target; e.preventDefault();
+    if (f.matches("[data-search-form]")) { const h = searchHits[searchHi]; if (h && !$("[data-sres]").hidden) goLot(h.id); return; }
     if (f.matches("[data-gfilter-form]")) return submitGroupFilter(f);
     if (f.matches("[data-group-join]")) return joinGroup(f);
   });
   // "City record" opened on this lot's card (toggle doesn't bubble, so listen on the way down)
-  document.addEventListener("toggle", e => { if (e.target.matches?.("details.cx") && e.target.open && S.sel) S.openedRecord = true; }, true);
+  document.addEventListener("toggle", e => {
+    if (e.target.matches?.("details.cx") && e.target.open && S.sel) S.openedRecord = true;
+    if (e.target.matches?.("details[data-tally]")) S.tallyOpen = e.target.open;   // not the city record: doesn't count as opened_record
+  }, true);
+  // search: results as you type; arrows move, Enter goes, Esc clears
+  const sin = $("[data-search-in]");
+  sin.addEventListener("input", () => { searchHi = 0; drawSearch(); });
+  sin.addEventListener("focus", drawSearch);
+  sin.addEventListener("blur", () => setTimeout(drawSearch, 0));
+  sin.addEventListener("keydown", e => {
+    if (e.key === "Escape") { e.stopPropagation(); if (sin.value) { sin.value = ""; drawSearch(); } else sin.blur(); return; }
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && searchHits.length) { e.preventDefault(); searchHi = (searchHi + (e.key === "ArrowDown" ? 1 : searchHits.length - 1)) % searchHits.length; drawSearch(); }
+  });
+  $("[data-sres]").addEventListener("pointerdown", e => e.preventDefault());   // keep the field focused until the tap lands
   document.addEventListener("keydown", e => {
     if (e.target.matches("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "Escape") { if (S.page) return closePage(); if (S.sheet && S.sheet !== "switch") return closeSheet(); if (S.sel) return select(null); }
@@ -1239,7 +1537,7 @@ async function boot() {
     try { mine = await rpc("my_votes", { voter_id: voterId }); } catch {}
     $("[data-dock]").hidden = false; $("[data-boot]").hidden = true;
     drawBar();
-    if (!mine.length || await askSwitch(card)) { setVoter(card); pill("Voter card loaded", 1800); }
+    if (!mine.length || await askSwitch(card)) { setVoter(card); pill("Voter card loaded", 1800); ls.set(NUDGE_KEY, "came-with-card"); }
   }
   if (group !== null) {
     const code = normGroup(group);
@@ -1250,20 +1548,28 @@ async function boot() {
   }
   stripParams();
 
+  buildSearch();
   await initMap();
-  $("[data-boot]").hidden = true; $("[data-dock]").hidden = false;
-  drawBar(); drawLocate();
+  $("[data-boot]").hidden = true; $("[data-dock]").hidden = false; $("[data-search]").hidden = false;
+  drawView(); drawBar(); drawLocate();
   try { await Promise.all([refreshTallies(), refreshMine()]); } catch { toast("Couldn't reach the record. Votes will show when it's back."); }
   paint();
   startLive();
   route();
 
-  // Location: already allowed -> start; never answered -> the one-sentence note first; declined -> leave it.
-  if (!hasGeo()) { locState = "unsupported"; drawLocate(); return; }
-  const perm = await locPermission();
-  if (perm === "granted" || (perm !== "denied" && ls.get(LOC_KEY) === "asked")) startWatch();   // seen the note before: no need to repeat it
+  // A card link on its own load counts as having the card: no nudge to save it.
+  if (arrivedVia === "card_link") ls.set(NUDGE_KEY, "came-with-card");
+  // First visit: the welcome sheet, which asks about location too. Someone who has voted or answered the location
+  // question before has seen it. After that: already allowed -> start; never answered -> the one-sentence note;
+  // declined -> leave it.
+  const perm = hasGeo() ? await locPermission() : "unsupported";
+  if (!hasGeo()) { locState = "unsupported"; drawLocate(); }
+  else if (perm === "granted" || (perm !== "denied" && ls.get(LOC_KEY) === "asked")) startWatch();   // seen the note before: no need to repeat it
   else if (perm === "denied") { locState = "denied"; drawLocate(); }
-  else if (ls.get(LOC_KEY) !== "later" && !S.page && S.sheet !== "switch") openLocNote();
+  const free = !S.page && S.sheet !== "switch";
+  if (!ls.get(WELCOME_KEY) && (S.mine.size || ls.get(LOC_KEY))) ls.set(WELCOME_KEY, true);
+  if (!ls.get(WELCOME_KEY)) { if (free) openWelcome(perm); }
+  else if (hasGeo() && perm !== "granted" && perm !== "denied" && !ls.get(LOC_KEY) && free) openLocNote();
 }
 boot();
 
