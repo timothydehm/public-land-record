@@ -46,7 +46,7 @@ a{color:inherit}
   display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
 .dock>*{pointer-events:auto;width:100%;max-width:440px}
 
-/* the bar: choices, your/everyone toggle, more */
+/* the tray: the three choices and Everyone / Mine */
 .vbar{display:flex;align-items:center;gap:6px;background:var(--paper);border-radius:18px;box-shadow:var(--shadow);padding:7px}
 .sq{flex:1 1 0;min-width:0;height:52px;border:0;border-radius:12px;background:var(--c);color:#fff;font-size:13px;font-weight:650;line-height:1.1;
   display:grid;place-items:center;padding:0 4px;text-align:center;position:relative;text-shadow:0 1px 1px rgba(0,0,0,.2);
@@ -58,11 +58,10 @@ a{color:inherit}
 .sq.cur::after{content:"";position:absolute;top:6px;right:7px;width:7px;height:7px;border-radius:50%;background:#fff}
 .sq.busy{animation:pulse .9s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.7}}
-@media (max-width:420px){.vbar{gap:5px;padding:6px}.sq{font-size:12px;padding:0 2px;letter-spacing:-.01em}.ib{width:38px}}
-.ib{flex:none;width:42px;height:52px;border:0;border-radius:12px;background:transparent;display:grid;place-items:center;color:var(--ink);-webkit-tap-highlight-color:transparent}
-.ib:hover,.ib[aria-expanded="true"]{background:var(--mist)}
-.ib[aria-pressed="true"]{background:var(--ink);color:#fff}
-.ib svg{width:23px;height:23px}
+@media (max-width:420px){.vbar{gap:5px;padding:6px}.sq{font-size:12px;padding:0 2px;letter-spacing:-.01em}.vt{width:78px}.vt button{font-size:12px}}
+.vt{flex:none;width:82px;height:52px;background:var(--mist);border-radius:12px;padding:3px;display:flex;flex-direction:column;gap:2px}
+.vt button{flex:1;border:0;border-radius:9px;background:transparent;font-size:12.5px;font-weight:600;color:var(--muted)}
+.vt button[aria-pressed="true"]{background:var(--ink);color:#fff;font-weight:650}
 .shake{animation:shake .36s ease-in-out}
 @keyframes shake{0%,100%{translate:0}20%{translate:-6px}40%{translate:6px}60%{translate:-4px}80%{translate:3px}}
 
@@ -78,23 +77,25 @@ a{color:inherit}
 .nx{flex:none;width:40px;height:40px;border:0;border-radius:12px;background:var(--mist);display:grid;place-items:center;color:var(--ink)}
 .nx:hover{background:#e8e6e2}
 .nx svg{width:20px;height:20px}
-.counts{margin-top:9px;font-size:14px;display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;align-items:baseline}
-.counts .k{color:var(--muted);font-size:13px}
-.counts .k.dec{color:var(--ink);font-weight:650}
-.counts .off{opacity:.42}
-.counts .v{min-width:0}
-.counts .v span{white-space:nowrap}
-.counts .v .sw{vertical-align:-1px;margin-right:4px}
-.counts .none{color:#a19da6}
 .card .note{font-size:12.5px;color:var(--muted);margin-top:6px}
-.timing{margin-top:7px;font-size:13.5px;display:flex;gap:12px;align-items:baseline}
-.timing .k{color:var(--muted);font-size:13px;flex:none}
-.mine{margin-top:6px;font-size:14px;display:flex;align-items:center;gap:7px;min-height:20px}
+/* the votes on a lot: a line per choice, a dot per vote, the lot on the left and farther to the right.
+   The shaded column holds the votes that set the lot's color. More than three in one place show as a number. */
+.vchart{margin-top:12px;display:grid;grid-template-columns:128px repeat(7,minmax(0,1fr));row-gap:9px;align-items:center}
+.vchart .lab{font-size:13px;display:flex;justify-content:space-between;gap:8px;padding-right:12px;white-space:nowrap}
+.vchart .lab b{font-weight:650;font-variant-numeric:tabular-nums}
+.vchart .c{height:16px;display:flex;justify-content:center;align-items:center;gap:2px;background-image:linear-gradient(var(--line),var(--line));background-size:100% 1px;background-position:center;background-repeat:no-repeat}
+.vchart .c.dec{background-color:var(--mist);border-radius:4px}
+.vchart .d{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.vchart .d.o{background:var(--paper);box-shadow:inset 0 0 0 2px var(--c)}
+.vchart .n{min-width:20px;height:16px;padding:0 5px;border-radius:8px;background:var(--c);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.vchart .n.o{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--c)}
+.vchart .ax{grid-column:2/-1;display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
+.vchart .ax b{color:var(--ink);font-weight:600}
+.vtime{margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.35}
+.mine{margin-top:10px;padding-top:9px;border-top:1px solid var(--mist);font-size:14px;display:flex;align-items:center;gap:7px;min-height:20px}
 .mine b{font-weight:650}
-.cx,.fold{border-top:1px solid var(--mist);margin-top:9px;padding-top:7px;font-size:13.5px}
-.cx summary,.fold summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);padding:3px 0}
-.fold+.cx{margin-top:4px}
-.fold .counts{margin-top:6px}
+.cx{border-top:1px solid var(--mist);margin-top:9px;padding-top:7px;font-size:13.5px}
+.cx summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);padding:3px 0}
 /* the headline result and where you are, at the top of the card */
 .lead{margin-top:9px;font-size:15px;display:flex;align-items:center;gap:8px}
 .lead b{font-weight:650}
@@ -108,81 +109,67 @@ dl.city dt{color:var(--muted)}
 dl.city dd{margin:0;word-break:break-word}
 dl.city dd.blank{color:#a19da6;font-style:italic}
 @media (min-width:900px){
-  .card{position:fixed;left:20px;top:122px;width:360px;max-width:none;max-height:calc(100dvh - 142px)}
+  .card{position:fixed;left:20px;top:76px;width:376px;max-width:none;max-height:calc(100dvh - 176px)}
   .card.in{animation-name:cardInSide}
   .maplibregl-ctrl-top-left{top:auto;bottom:0}
 }
 @keyframes cardInSide{from{transform:translateX(-12px);opacity:0}to{transform:none;opacity:1}}
 
-/* sheets above the bar: More, the location note, the card-switch question */
+/* sheets above the tray: the welcome, the location note, Why?, the card-switch question */
 .sheet{background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:6px;font-size:14.5px;
-  max-height:calc(100dvh - 120px);overflow:auto;animation:cardIn .16s ease-out}
+  max-height:calc(100dvh - 190px);overflow:auto;animation:cardIn .16s ease-out}
 .sheet .pad{padding:10px 10px 8px}
 .sheet p{margin:0 0 10px;line-height:1.4}
 .sheet .acts{display:flex;gap:8px;flex-wrap:wrap}
-.key{display:grid;gap:5px;padding:10px 10px 12px;border-bottom:1px solid var(--mist);margin-bottom:4px;font-size:13.5px}
-.key .ks{display:flex;flex-wrap:wrap;gap:4px 14px}
-.key span{display:inline-flex;align-items:center;gap:6px}
-.key .muted{font-size:13px}
-.dl{margin-top:12px}
-.dl h2{margin:0 0 6px!important}
-.dl p{font-size:14.5px;color:var(--muted)}
-.mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:0 10px;border:0;border-radius:10px;background:none;
-  text-align:left;text-decoration:none;font-weight:550;color:var(--ink)}
-button.mrow:hover{background:var(--mist)}
-
-.locate{position:fixed;z-index:9;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);width:44px;height:44px;border-radius:14px;border:0;
-  background:var(--paper);box-shadow:var(--shadow);display:grid;place-items:center;color:var(--ink)}
-.locate svg{width:21px;height:21px}
-.locate.on{color:#2F6FEB}
-@media (min-width:900px){.locate{right:20px;top:20px}}
-
-/* what the map shows: Everyone | Mine, and one button for Show votes cast. Above the bar on phones (hidden while a
-   lot is open, so it never covers what it changes); under the search on wide screens. */
-.vrow{display:flex;gap:8px;align-items:center;position:relative}
-.seg{display:inline-flex;flex:none;background:var(--paper);border-radius:999px;box-shadow:var(--shadow);padding:3px}
-.seg button{border:0;background:none;min-height:30px;padding:0 13px;border-radius:999px;font-size:13.5px;font-weight:600;color:var(--muted)}
-.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
-.fwrap{position:static}
-.fbtn{display:inline-flex;align-items:center;gap:5px;min-height:36px;padding:0 10px 0 14px;border:0;border-radius:999px;background:var(--paper);box-shadow:var(--shadow);font-size:13.5px;font-weight:600}
-.fbtn svg{width:15px;height:15px;transition:transform .15s}
-.fbtn[aria-expanded="true"] svg{transform:rotate(180deg)}
-.fbtn.on{background:var(--ink);color:#fff}
-.fmenu{position:absolute;z-index:5;left:0;bottom:calc(100% + 8px);width:min(340px,100%);background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:5px;animation:cardIn .14s ease-out}
-.fmenu button{display:grid;grid-template-columns:18px max-content 1fr;white-space:nowrap;align-items:baseline;gap:6px;width:100%;border:0;background:none;border-radius:10px;padding:9px 10px 9px 6px;text-align:left;font-size:14.5px}
-.fmenu button:hover{background:var(--mist)}
-.fmenu button svg{width:15px;height:15px;align-self:center;visibility:hidden}
-.fmenu button[aria-checked="true"]{font-weight:650}
-.fmenu button[aria-checked="true"] svg{visibility:visible}
-.fmenu button span{font-size:12.5px;color:var(--muted);font-weight:400;text-align:right;overflow:hidden;text-overflow:ellipsis}
-.fmenu p{margin:4px 10px 7px 30px;font-size:12.5px;color:var(--muted);line-height:1.35}
-.gfchip{flex:none;display:inline-flex;align-items:center;min-height:36px;padding:0 3px 0 13px;border-radius:999px;background:var(--ink);color:#fff;font-size:13.5px;font-weight:550;box-shadow:var(--shadow)}
-.gfchip button{border:0;background:none;color:#fff;width:32px;min-height:32px;display:grid;place-items:center;border-radius:999px}
-.gfchip svg{width:14px;height:14px}
-@media (min-width:900px){
-  .vrow{position:fixed;left:20px;top:74px;width:360px}
-  .fmenu{bottom:auto;top:calc(100% + 8px)}
-}
-
-/* search: addresses and parcel numbers, from the lots already loaded */
-.search{position:fixed;z-index:12;left:12px;right:68px;top:calc(env(safe-area-inset-top,0px) + 12px)}
-.search form{position:relative;margin:0}
-.search .si{position:absolute;left:13px;top:12px;width:20px;height:20px;color:var(--muted);pointer-events:none}
-.search input{width:100%;height:44px;border:0;border-radius:14px;background:var(--paper);box-shadow:var(--shadow);padding:0 40px 0 41px;font-size:16px;-webkit-appearance:none;appearance:none}
-.search input::-webkit-search-cancel-button{display:none}
-.search input::placeholder{color:var(--muted)}
-.search input:focus{outline:2.5px solid var(--ink);outline-offset:0}
-.search .sx{position:absolute;right:4px;top:4px;width:36px;height:36px;border:0;border-radius:10px;background:none;display:grid;place-items:center;color:var(--muted)}
-.search .sx svg{width:17px;height:17px}
-.sres{margin-top:6px;background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:5px;max-height:min(360px,calc(100dvh - 140px));overflow:auto}
+/* the top bar: every tool, one icon each. Phones: search, group, share, voter card, download, how votes count,
+   locate; search opens across the bar. Wide screens: the name, the tools in the middle, search and locate. */
+.tbar{position:fixed;z-index:20;left:0;right:0;top:0;padding-top:env(safe-area-inset-top,0px);background:var(--paper);border-bottom:1px solid #E4E2DD}
+.tbar .row{height:56px;display:flex;align-items:center;justify-content:space-between;gap:2px;padding:0 6px}
+.tbar .tools,.tbar .tright{display:contents}
+.tname{display:none}
+.tb{flex:none;width:44px;height:44px;border:0;border-radius:11px;background:transparent;display:grid;place-items:center;color:var(--ink);-webkit-tap-highlight-color:transparent}
+.tb:hover{background:var(--mist)}
+.tb[aria-expanded="true"]{background:var(--ink);color:#fff}
+.tb svg{width:22px;height:22px}
+.tb.on{color:#2F6FEB}
+.tsearch{display:none;position:relative;flex:1;min-width:0}
+.tsearch form{position:relative;margin:0}
+.tsearch .si{position:absolute;left:11px;top:11px;width:20px;height:20px;color:var(--muted);pointer-events:none}
+.tsearch input{width:100%;height:42px;border:0;border-radius:11px;background:var(--mist);padding:0 40px 0 39px;font-size:16px;-webkit-appearance:none;appearance:none}
+.tsearch input::-webkit-search-cancel-button{display:none}
+.tsearch input::placeholder{color:var(--muted)}
+.tsearch input:focus{outline:2px solid var(--ink);outline-offset:0}
+.tsearch .sx{position:absolute;right:3px;top:3px;width:36px;height:36px;border:0;border-radius:9px;background:none;display:grid;place-items:center;color:var(--muted)}
+.tsearch .sx svg{width:17px;height:17px}
+.tbar.searching .row>.tb,.tbar.searching .tname,.tbar.searching .tools>*,.tbar.searching .tright>.tb{display:none}
+.tbar.searching .tsearch{display:block}
+.sres{position:fixed;z-index:21;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 64px);background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:5px;max-height:min(380px,calc(100dvh - 200px));overflow:auto}
 .sres button{display:block;width:100%;text-align:left;border:0;background:none;border-radius:10px;padding:8px 10px;font-size:14.5px;line-height:1.3}
 .sres button:hover,.sres button.hi{background:var(--mist)}
 .sres button span{display:block;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .sres p{margin:0;padding:9px 10px;font-size:14px;color:var(--muted)}
-@media (min-width:900px){.search{left:20px;right:auto;top:20px;width:360px}}
+/* download: the two files, and a way to a group's */
+.dlp{position:fixed;z-index:21;top:calc(env(safe-area-inset-top,0px) + 64px);right:8px;width:290px;max-width:calc(100% - 16px);background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:5px;animation:cardIn .14s ease-out}
+.dlp button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:0;background:none;border-radius:10px;padding:9px 10px;text-align:left;font-size:15px;font-weight:550}
+.dlp button:hover{background:var(--mist)}
+.dlp button>span>span{display:block;font-size:12.5px;font-weight:400;color:var(--muted)}
+.dlp button svg{width:18px;height:18px;color:var(--muted);flex:none}
+.dlp p{margin:3px 10px 7px;font-size:12.5px;color:var(--muted)}
+@media (min-width:900px){
+  .tbar .row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);padding:0 16px;gap:12px}
+  .tbar .tools,.tbar .tright{display:flex;gap:6px;align-items:center}
+  .tbar .tright{justify-content:flex-end}
+  .tname{display:block;font-size:16px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tb[data-tool=search]{display:none}
+  .tsearch{display:block;flex:none;width:300px}
+  .sres{left:auto;right:76px;width:360px}
+}
+.gfchip{flex:none;display:inline-flex;align-items:center;min-height:36px;padding:0 3px 0 13px;border-radius:999px;background:var(--ink);color:#fff;font-size:13.5px;font-weight:550;box-shadow:var(--shadow)}
+.gfchip button{border:0;background:none;color:#fff;width:32px;min-height:32px;display:grid;place-items:center;border-radius:999px}
+.gfchip svg{width:14px;height:14px}
 
 /* after the first vote: save your voter card. Never blocks the map. */
-.nudge{position:fixed;z-index:30;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);background:var(--paper);border-radius:var(--r-card);
+.nudge{position:fixed;z-index:30;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 66px);background:var(--paper);border-radius:var(--r-card);
   box-shadow:var(--shadow);padding:12px 10px 12px 14px;display:flex;gap:10px;align-items:flex-start;animation:nudgeIn .25s ease-out}
 .nudge p{margin:0;font-size:14px;color:var(--muted);line-height:1.4}
 .nudge p b{display:block;color:var(--ink);font-size:15px;font-weight:650;margin-bottom:1px}
@@ -192,9 +179,11 @@ button.mrow:hover{background:var(--mist)}
 
 /* first visit */
 .wel h2{font-size:19px;letter-spacing:-.01em;margin:0 0 6px;line-height:1.25}
-.wel .steps{margin:10px 0 12px;padding:0;list-style:none;counter-reset:st;display:grid;gap:7px}
-.wel .steps li{counter-increment:st;display:flex;gap:10px;align-items:baseline}
-.wel .steps li::before{content:counter(st);flex:none;width:22px;height:22px;border-radius:50%;background:var(--mist);display:grid;place-items:center;font-size:12.5px;font-weight:650;color:var(--muted);position:relative;top:-1px}
+.wel .tl{list-style:none;margin:12px 0 14px;padding:12px 0 0;border-top:1px solid var(--mist);display:grid;gap:6px}
+.wel .tl li{display:flex;align-items:center;gap:10px;font-size:14px}
+.wel .tl i{width:32px;height:32px;flex:none;border-radius:9px;background:var(--mist);display:grid;place-items:center}
+.wel .tl svg{width:18px;height:18px}
+.wel .tl b{font-weight:650}
 .wel .wloc{background:var(--mist);border-radius:12px;padding:12px 12px 12px}
 .wel .wloc p{margin:0 0 10px}
 .wel .wfoot{margin:10px 0 0;font-size:14px}
@@ -203,7 +192,7 @@ button.mrow:hover{background:var(--mist)}
 .zhint.show{opacity:1;transform:translate(-50%,0)}
 .toast{position:fixed;z-index:800;left:50%;transform:translate(-50%,10px);opacity:0;pointer-events:none;max-width:min(420px,calc(100% - 24px));width:max-content;
   background:var(--danger);color:#fff;border-radius:12px;padding:11px 16px;font-size:14.5px;line-height:1.3;box-shadow:0 8px 24px rgba(29,26,38,.25);
-  transition:opacity .18s,transform .18s;top:calc(env(safe-area-inset-top,0px) + 14px)}
+  transition:opacity .18s,transform .18s;top:calc(env(safe-area-inset-top,0px) + 68px)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
 /* full pages over the map: your voter card, how votes count */
@@ -260,22 +249,37 @@ button.mrow:hover{background:var(--mist)}
 </head>
 <body>
 <div id="map" aria-label="Map of the city's land bank lots"></div>
-<button class="locate" data-locate aria-label="Center the map on me" hidden></button>
-<div class="search" data-search hidden>
-  <form role="search" data-search-form autocomplete="off">
-    <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
-    <input type="search" data-search-in placeholder="Search an address or parcel" aria-label="Search an address or parcel number" enterkeyhint="search" spellcheck="false" autocapitalize="off" aria-controls="sres" aria-expanded="false">
-    <button type="button" class="sx" data-search-clear aria-label="Clear the search" hidden></button>
-  </form>
-  <div class="sres" id="sres" data-sres hidden></div>
-</div>
+<header class="tbar" data-tbar hidden>
+  <div class="row" role="toolbar" aria-label="Tools">
+    <div class="tname">Public Land Voting Tool</div>
+    <button class="tb" data-tool="search" aria-label="Search an address or parcel" title="Search" aria-expanded="false"></button>
+    <div class="tools">
+      <button class="tb" data-go="group" aria-label="Group" title="Group"></button>
+      <button class="tb" data-share aria-label="Share the map" title="Share the map"></button>
+      <button class="tb" data-go="card" aria-label="Your voter card" title="Your voter card"></button>
+      <button class="tb" data-dl-open aria-label="Download the data" title="Download the data" aria-haspopup="true" aria-expanded="false"></button>
+      <button class="tb" data-go="how" aria-label="How votes count" title="How votes count"></button>
+    </div>
+    <div class="tright">
+      <div class="tsearch">
+        <form role="search" data-search-form autocomplete="off">
+          <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+          <input type="search" data-search-in placeholder="Search an address or parcel" aria-label="Search an address or parcel number" enterkeyhint="search" spellcheck="false" autocapitalize="off" aria-controls="sres" aria-expanded="false">
+          <button type="button" class="sx" data-search-clear aria-label="Close the search"></button>
+        </form>
+      </div>
+      <button class="tb" data-locate aria-label="Center the map on me" title="Center the map on me"></button>
+    </div>
+  </div>
+</header>
+<div class="sres" id="sres" data-sres hidden></div>
+<div class="dlp" data-dlp role="dialog" aria-label="Download the data" hidden></div>
 <div class="nudge" data-nudge role="status" hidden></div>
 <div class="zhint" data-zhint role="status"></div>
 <div class="dock" data-dock hidden>
   <section class="card" data-card hidden aria-label="Selected lot"></section>
   <div class="sheet" data-sheet hidden></div>
   <div class="gchip" data-gchip hidden></div>
-  <div class="vrow" data-vrow role="group" aria-label="What the map shows"></div>
   <nav class="vbar" data-bar aria-label="Vote"></nav>
 </div>
 <div class="page" data-page hidden></div>
@@ -298,7 +302,6 @@ button.mrow:hover{background:var(--mist)}
      - On each lot, the votes cast closest to it set its color (the leading
        choice in the nearest group that has votes; a tie is grey).
      - Solid: that group is "at the lot". Hatched: it's farther away.
-   "Show votes cast" narrows what the map shows; it never changes the record.
    Timing: each vote keeps the seconds since the voter's previous vote. The
    card shows a lot's median compared with every vote in the record ("longer
    than 70% of votes"); no cutoffs. The downloads have each vote's seconds.
@@ -309,20 +312,19 @@ button.mrow:hover{background:var(--mist)}
    page version, why there was no location, and the device's group code.
    Group codes (MAPLE-RIVER-42) gather a group's votes; they never change
    counts, colors or which votes come first.
-   The screen (Oct 28): a first-visit sheet (what this is, how to vote,
-   the location question); after the first saved vote, a note at the top
-   to save the voter card (never blocks voting); search by address or
-   parcel, matched in the page; Everyone | Mine and one Show votes cast
-   button, above the bar on phones and under the search on wide screens;
-   the lot card leads with the result, then one line about you (where you
-   are until you vote, then your vote), tier rows and timing folded under
-   "How these votes were cast". The group filter is on the Group page.
+   The screen (Oct 30): a top bar with every tool as an icon (search, group,
+   share, voter card, download, how votes count, locate; on wide screens the
+   name, the tools and a search field); a tray with the three choices and
+   Everyone / Mine; the lot card shows the result, a chart (a line per
+   choice, a dot per vote, the lot on the left), timing, your vote, and
+   the city record. A first-visit sheet names the tools once; after the
+   first saved vote, a note at the top to save the voter card.
 
    The database (schema.sql) is reached only through ten functions:
    cast_vote, lot_tallies, my_votes, lot_info, export_lots, export_votes,
    create_group, group_exists, export_group_lots, export_group_votes.
    ===================================================================== */
-const PAGE_VERSION = "2026-10-28";   // stored with each vote; change it when the page changes
+const PAGE_VERSION = "2026-10-30";   // stored with each vote; change it when the page changes
 const CONFIG = {
   parcelsUrl: "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/City_Landbank/FeatureServer/0",
   idField: "parcelpin", addressField: "par_addr_all",
@@ -354,7 +356,6 @@ const TIERS = [
   { key: "none",         name: () => "No location",            phrase: () => "no location",           col: "no_location" }
 ];
 const TK = Object.fromEntries(TIERS.map((t, i) => [t.key, { ...t, rank: i + 1 }]));
-const FILTERS = ["lot", "block", "neighborhood", "ward", "city", "all"];   // "Show votes cast" choices
 const rankOf = k => k === "all" ? 7 : TK[k]?.rank ?? 7;
 // Seconds: "2.4 s", "14 s", "3 min 20 s", "2 hr 5 min", "3 days".
 function fmtSecs(sec) {
@@ -420,12 +421,16 @@ function uuid() {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 const ICON = {
-  mine: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg>`,
-  more: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>`,
+  search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>`,
+  group: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19c.7-3.2 3.1-5 6-5s5.3 1.8 6 5"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M16.5 14c2.3 0 4.1 1.5 4.6 4.2"/></svg>`,
+  share: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12.5V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6.5"/></svg>`,
+  card: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 19.5h1.5M19.5 14v1.5"/></svg>`,
+  download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 10.5 5 5 5-5"/><path d="M5 20h14"/></svg>`,
+  about: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.6v.2"/></svg>`,
   close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
   down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`,
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>`,
-  locate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/><circle cx="12" cy="12" r="7.2"/></svg>`,
+  locate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/><circle cx="12" cy="12" r="7.2"/></svg>`,
   next: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`
 };
 
@@ -611,7 +616,7 @@ function centerOnMe(first) {
 }
 function drawLocate() {
   const b = $("[data-locate]"); if (!b) return;
-  b.innerHTML = ICON.locate; b.hidden = false; b.classList.toggle("on", !!fix);
+  b.classList.toggle("on", !!fix);
 }
 
 /* ------------------------------------------------------------- the lots
@@ -694,10 +699,9 @@ function centroid(g) {
 }
 
 /* ------------------------------------------------------------------ state */
-const FARTHEST_KEY = "plvt:show-votes-cast";
 const S = {
   fc: null, byId: new Map(), fields: [], bounds: null,
-  farthest: FILTERS.includes(ls.get(FARTHEST_KEY)) ? ls.get(FARTHEST_KEY) : "all",
+  farthest: "all",   // the map no longer narrows which votes it shows (Oct 30): solid and hatched already say it. filter_at_cast records "all".
   tally: new Map(),      // parcel -> { counts: [21], timing: [timed, median seconds, median %], tier, lead, display }
   mine: new Map(),       // parcel -> { choice, d (feet or null; undefined while saving), out, tier, group }
   info: new Map(),       // parcel -> { neighborhood, ward, region }
@@ -705,7 +709,6 @@ const S = {
   group: (v => typeof v === "string" && GROUP_RE.test(v) ? v : null)(ls.get(GROUP_KEY)),   // this device's group code
   groupFilter: null,     // Show votes cast > Group: only that group's votes (this visit only)
   openedRecord: false,   // "City record" was opened on the selected lot's card
-  tallyOpen: false,      // "How these votes were cast" stays open from lot to lot once opened (this visit)
   sel: null, sheet: null, page: null
 };
 let gl = null;
@@ -906,14 +909,15 @@ function select(id, zoom) {
   drawBar(); drawCard(true);
   if (id) keepInView(id, zoom);
 }
-// Keep the selected lot in view: between the card and the panel on wide screens, between the search and the card
-// on phones. With zoom (a search result), always go there at that zoom.
+// Keep the selected lot in view: under the top bar, right of the card on wide screens, above the card on phones.
+// With zoom (a search result), always go there at that zoom.
 function keepInView(id, zoom) {
   if (!gl) return;
   const p = S.byId.get(id).properties, pt = gl.project([p.cx, p.cy]), W = innerWidth, H = innerHeight, wide = isWide();
   const card = $("[data-card]"), dockTop = (wide ? $("[data-bar]") : card.hidden ? $("[data-bar]") : card).getBoundingClientRect().top;
-  const r = wide ? { left: (!card.hidden ? card.getBoundingClientRect().right : $("[data-vrow]").getBoundingClientRect().right) + 24, right: W - 70, top: 24, bottom: dockTop - 16 }
-    : { left: 20, right: W - 20, top: 70, bottom: dockTop - 16 };
+  const top = $("[data-tbar]").getBoundingClientRect().bottom + 16;
+  const r = wide ? { left: (!card.hidden ? card.getBoundingClientRect().right : 0) + 24, right: W - 24, top, bottom: dockTop - 16 }
+    : { left: 20, right: W - 20, top, bottom: dockTop - 16 };
   if (!zoom && pt.x > r.left && pt.x < r.right && pt.y > r.top && pt.y < r.bottom) return;
   gl.easeTo({ center: [p.cx, p.cy], zoom: zoom ?? gl.getZoom(), offset: [(r.left + r.right) / 2 - W / 2, (r.top + r.bottom) / 2 - H / 2], duration: calm() ? 0 : zoom ? 600 : 350 });
 }
@@ -923,40 +927,9 @@ function drawBar() {
   const bar = $("[data-bar]"), cur = S.sel ? S.mine.get(S.sel)?.choice : null;
   bar.classList.toggle("lit", !!S.sel);
   bar.innerHTML = CHOICES.map((c, i) => `<button class="sq${cur === c.key ? " cur" : ""}${S.sel && pending.has(S.sel) && cur === c.key ? " busy" : ""}" data-choice="${c.key}" style="--c:${c.color}"
-      aria-pressed="${cur === c.key}" aria-label="${esc(c.label)}${cur === c.key ? " (your vote; tap to clear)" : ""}" title="${esc(c.label)} (${i + 1})">${esc(c.label)}</button>`).join("")
-    + `<button class="ib" data-more aria-label="More" aria-haspopup="true" aria-expanded="${S.sheet === "more"}">${ICON.more}</button>`;
-  drawGroupChip(); rowVis();
-}
-// What the map shows: Everyone | Mine, and one button for Show votes cast that opens the choices as a short list.
-// Above the bar on phones (hidden while a lot or a sheet is open, so it never covers what it changes); under the
-// search on wide screens. A group being shown gets its own chip, with × to show everyone again.
-const segHtml = () => `<div class="seg" role="group" aria-label="Whose votes"><button data-view="all" aria-pressed="${S.view === "all"}">Everyone</button><button data-view="mine" aria-pressed="${S.view === "mine"}">Mine</button></div>`;
-const MENU_ORDER = ["all", "city", "ward", "neighborhood", "block", "lot"];   // widest first: the default on top
-const MENU_HINT = { block: "within 500 ft", lot: "within 200 ft" };   // the others say it in their names
-function drawView() {
-  const row = $("[data-vrow]");
-  row.innerHTML = segHtml()
-    + `<div class="fwrap"><button class="fbtn${S.farthest === "all" ? "" : " on"}" data-fmenu aria-haspopup="menu" aria-expanded="false" aria-label="Show votes cast: ${esc(FILTER_LABEL[S.farthest])}">${esc(FILTER_LABEL[S.farthest])}${ICON.down}</button></div>`;
-  drawGroupChip(); rowVis();
-}
-function openFmenu() {
-  const wrap = $("[data-vrow] .fwrap"), btn = $("[data-fmenu]", wrap); if (!wrap || $(".fmenu", wrap)) return;
-  wrap.insertAdjacentHTML("beforeend", `<div class="fmenu" role="menu" aria-label="Show votes cast">
-    ${MENU_ORDER.map(k => `<button role="menuitemradio" data-filter="${k}" aria-checked="${S.farthest === k}">${ICON.check}${esc(FILTER_LABEL[k])}<span>${esc(MENU_HINT[k] || "")}</span></button>`).join("")}
-    <p>Changes only what you see, not the votes. On every lot, the votes cast closest to it set its color.</p></div>`);
-  btn.setAttribute("aria-expanded", "true");
-  $(".fmenu [aria-checked=true]", wrap)?.focus({ preventScroll: true });
-}
-function closeFmenu(refocus) {
-  const m = $("[data-vrow] .fmenu"); if (!m) return false;
-  m.remove(); const btn = $("[data-fmenu]"); btn?.setAttribute("aria-expanded", "false"); if (refocus) btn?.focus();
-  return true;
-}
-function rowVis() {
-  const row = $("[data-vrow]"); if (!row) return;
-  const hide = !isWide() && !!(S.sel || S.sheet || S.page);
-  if (hide) closeFmenu();
-  row.hidden = hide; setDockH();
+      aria-pressed="${cur === c.key}" aria-label="${esc(c.label)}${cur === c.key ? " (your vote; tap to clear)" : ""}" title="${esc(c.label)} (${i + 1})">${esc(c.label).replace("Development", "Develop&shy;ment")}</button>`).join("")
+    + `<div class="vt" role="group" aria-label="Whose votes"><button data-view="all" aria-pressed="${S.view === "all"}">Everyone</button><button data-view="mine" aria-pressed="${S.view === "mine"}">Mine</button></div>`;
+  drawGroupChip();
 }
 // "Group: MAPLE-RIVER-42 ×" above the bar while this device has a group on. × turns it off.
 // The line above the bar for groups: this device's group (votes go to it), and a group being shown on the map.
@@ -967,10 +940,6 @@ function drawGroupChip() {
     <button class="gx" data-group-off aria-label="Turn off group ${esc(S.group)}" title="Turn off the group">${ICON.close}</button></span>` : "")
     + (S.groupFilter ? `<span class="gfchip">Showing only ${esc(S.groupFilter)}<button data-gfilter-off aria-label="Show everyone's votes, not just group ${esc(S.groupFilter)}">${ICON.close}</button></span>` : "");
   setDockH();
-}
-function countText(a) {
-  const parts = CHOICES.map((c, i) => a[i] ? `<span><i class="sw" style="background:${c.color}"></i>${fmt(a[i])} ${esc(lower(c.key))}</span>` : "").filter(Boolean);
-  return parts.length ? parts.join(", ") : `<span class="none">none</span>`;
 }
 function myVoteText(m, info) {
   if (!m) return "";
@@ -984,36 +953,47 @@ function myVoteText(m, info) {
     <span>Your vote: <b>${esc(c.label)}</b> <span class="muted">· ${esc(m.out ? "from outside Cleveland" : where)}${grp}${why}</span></span>`;
 }
 function drawCard(fresh) {
-  const el = $("[data-card]"); rowVis();
+  const el = $("[data-card]");
   if (!S.sel || S.page || S.sheet === "why") { el.hidden = true; setDockH(); return; }
-  const f = S.byId.get(S.sel), p = f.properties, t = S.tally.get(S.sel), m = S.mine.get(S.sel), info = S.info.get(S.sel);
-  const open = !fresh && el.querySelector("details")?.open;   // a newly selected lot starts with its city record folded
+  const f = S.byId.get(S.sel), p = f.properties, t = S.tally.get(S.sel), info = S.info.get(S.sel);
+  const open = !fresh && el.querySelector("details.cx")?.open;   // a newly selected lot starts with its city record folded
   const val = v => v === null || v === undefined || String(v).trim() === "" ? null : typeof v === "number" ? fmt(v) : String(v);
   const head = [`Parcel ${p.d}`, info?.neighborhood, info?.ward].filter(Boolean).join(" · ");   // the region is in the downloads
-  const lim = rankOf(S.farthest);
-  const rows = t ? TIERS.map((tr, i) => {
-    const a = t.counts.slice(i * 3, i * 3 + 3); if (!sum(a)) return "";
-    const cls = [tr.key === t.tier ? "dec" : "", i + 1 > lim ? "off" : ""].filter(Boolean).join(" ");
-    return `<span class="k ${cls}">${esc(tr.name(info))}</span><span class="v ${cls}">${countText(a)}</span>`;
-  }).join("") : "";
   const [timed, med, pct] = t?.timing || [0, null, null];
   const timing = !t ? "" : !timed ? "each vote was the voter's first"
     : `${timed > 1 ? "median " : ""}${fmtSecs(med)} after the voter's previous vote${pct === null ? "" : ` · ${pctText(pct)}`}`;
-  const total = t ? sum(t.counts) : 0;
-  el.innerHTML = `<div class="ch"><div class="ct"><b>${esc(p.a)}</b><div class="pin">${esc(head)}</div>
-</div>
+  el.innerHTML = `<div class="ch"><div class="ct"><b>${esc(p.a)}</b><div class="pin">${esc(head)}</div></div>
       <button class="nx" data-close aria-label="Close">${ICON.close}</button></div>
     ${S.groupFilter ? `<div class="note">Showing group ${esc(S.groupFilter)}'s votes only.</div>` : ""}
     ${leadHtml(t, info)}
+    ${t ? chartHtml(t, info) : ""}
+    ${t && timing ? `<div class="vtime" title="Seconds between each vote and the same voter's previous vote, compared with every vote in the record">Timing: ${esc(timing)}</div>` : ""}
     <div class="mine you" data-you>${youHtml(S.sel)}</div>
-    ${t ? `<details class="fold" data-tally${S.tallyOpen ? " open" : ""}><summary>How ${total === 1 ? "this vote was" : `these ${fmt(total)} votes were`} cast</summary>
-      <div class="counts" aria-label="Votes by where they were cast">${rows}</div>
-      ${timing ? `<div class="timing" title="Seconds between each vote and the same voter's previous vote, compared with every vote in the record"><span class="k">Timing</span><span>${esc(timing)}</span></div>` : ""}</details>` : ""}
     <details class="cx"${open ? " open" : ""}><summary>City record</summary>
       <dl class="city">${S.fields.map(fd => { const v = val(p.city[fd.name]); return `<dt>${esc(fd.alias)}</dt><dd class="${v === null ? "blank" : ""}">${v === null ? "Blank" : esc(v)}</dd>`; }).join("")}</dl></details>`;
   if (fresh && el.hidden) { el.classList.remove("in"); void el.offsetWidth; el.classList.add("in"); }
   el.hidden = false;
   setDockH();
+}
+// The votes on a lot as a picture: a line per choice, a dot per vote, in columns from the lot (left) to no location
+// (right): at the lot, on the block, in the neighborhood, in the ward, elsewhere in Cleveland, outside Cleveland,
+// no location. More than three in one place show as a number. The shaded column is the one that sets the color.
+function chartHtml(t, info) {
+  const said = [];
+  const rows = CHOICES.map((c, ci) => {
+    const n = TIERS.reduce((x, _, ti) => x + t.counts[ti * 3 + ci], 0), parts = [];
+    const cells = TIERS.map((tr, ti) => {
+      const k = t.counts[ti * 3 + ci], o = tr.key === "none" ? " o" : "";
+      if (k) parts.push(`${fmt(k)} ${tr.phrase(info)}`);
+      const marks = !k ? "" : k > 3 ? `<span class="n${o}">${fmt(k)}</span>` : `<i class="d${o}"></i>`.repeat(k);
+      const tip = k ? ` title="${esc(`${fmt(k)} ${lower(c.key)}, ${tr.phrase(info)}`)}"` : "";
+      return `<div class="c${tr.key === t.tier ? " dec" : ""}" style="--c:${c.color}"${tip}>${marks}</div>`;
+    }).join("");
+    if (parts.length) said.push(`${c.label}: ${parts.join(", ")}`);
+    return `<div class="lab"><span>${esc(c.label)}</span><b>${fmt(n)}</b></div>${cells}`;
+  }).join("");
+  return `<div class="vchart" role="img" aria-label="${esc(`Votes by choice and where they were cast, closest first. ${said.join(". ")}.`)}">${rows}
+    <div class="ax" aria-hidden="true"><b>at the lot</b><span>farther →</span><span>no location</span></div></div>`;
 }
 // The card's headline: the result that sets the lot's color, from the votes that decide it.
 // "Open space · 3 of 4 votes cast at the lot", "Tied · 4 votes cast on the block", "No votes yet".
@@ -1030,28 +1010,15 @@ function leadHtml(t, info) {
 const FILTER_LABEL = { lot: "At the lot", block: "On the block", neighborhood: "In the neighborhood", ward: "In the ward", city: "In Cleveland", all: "From anywhere" };
 function setDockH() { const d = $("[data-dock]"); if (d) document.documentElement.style.setProperty("--dock-h", `${d.offsetHeight}px`); }
 
-/* sheets: More, the location note, the card question */
+/* sheets: the welcome, the location note, Why?, the card question */
 function closeSheet() {
   const was = S.sheet; S.sheet = null; const s = $("[data-sheet]"); s.hidden = true; s.innerHTML = ""; drawBar(); if (was === "why") drawCard();
   if (was === "welcome") ls.set(WELCOME_KEY, true);   // however it closed: a choice, Esc, a tap on a lot, How votes count
 }
-function openMore() {
-  S.sheet = "more"; if (S.sel) select(null);
-  const s = $("[data-sheet]");
-  s.innerHTML = `<div class="key"><div class="ks">${CHOICES.map(c => `<span><i class="sw" style="background:${c.color}"></i>${esc(c.label)}</span>`).join("")}<span><i class="sw" style="background:${TIE.color}"></i>Tied</span></div>
-      <div class="ks muted"><span><i class="sw" style="background:#55525A"></i>Solid: someone voted at the lot</span><span><i class="sw h" style="--c:#55525A"></i>Hatched: the closest votes came from farther away</span></div></div>
-    <button class="mrow" data-go="group">Group ${ICON.next}</button>
-    <button class="mrow" data-share>Share the map ${ICON.next}</button>
-    <button class="mrow" data-go="card">Your voter card ${ICON.next}</button>
-    <button class="mrow" data-go="data">Download the data ${ICON.next}</button>
-    <button class="mrow" data-go="how">How votes count ${ICON.next}</button>`;
-  $$("svg", s).forEach(x => { x.setAttribute("width", "18"); x.setAttribute("height", "18"); });
-  s.hidden = false; drawBar();
-}
 // Show one group's votes: set from the Group page, cleared with the chip's × or there. This visit only.
 async function setGroupFilter(code) {
   S.groupFilter = code || null;
-  drawView(); if (S.page === "group") openGroup();
+  drawGroupChip(); if (S.page === "group") openGroup();
   paint();   // your-votes view changes at once
   try { if (await refreshTallies()) { paint(); drawCard(); } } catch { toast("Couldn't reach the record. Try again in a moment."); }
 }
@@ -1121,14 +1088,6 @@ async function useLoc() {
   whyOnFail = true;
   locClick();
 }
-async function setFarthest(k) {
-  closeFmenu(true);
-  if (!FILTERS.includes(k) || k === S.farthest) return;
-  S.farthest = k; ls.set(FARTHEST_KEY, k);
-  drawView();
-  paint();   // your-votes view changes at once
-  try { if (await refreshTallies()) { paint(); drawCard(); } } catch { toast("Couldn't reach the record. Try again in a moment."); }
-}
 async function shareMap() {
   const url = pageBase();
   if (navigator.share) {
@@ -1164,7 +1123,9 @@ function searchLots(q) {
 let searchHits = [], searchHi = 0;
 function drawSearch() {
   const inp = $("[data-search-in]"), box = $("[data-sres]"), q = inp.value.trim();
-  $("[data-search-clear]").hidden = !inp.value;
+  const x = $("[data-search-clear]");
+  x.hidden = isWide() && !inp.value;   // phones: × closes the search; wide screens: × clears it
+  x.innerHTML = ICON.close; x.setAttribute("aria-label", isWide() ? "Clear the search" : "Close the search");
   if (!q || document.activeElement !== inp) { box.hidden = true; inp.setAttribute("aria-expanded", "false"); return; }
   searchHits = searchLots(q); searchHi = Math.min(searchHi, Math.max(0, searchHits.length - 1));
   box.innerHTML = searchHits.length ? searchHits.map((h, i) => `<button type="button" data-lot="${esc(h.id)}" class="${i === searchHi ? "hi" : ""}">${esc(h.a)}<span>Parcel ${esc(h.d)}</span></button>`).join("")
@@ -1173,12 +1134,43 @@ function drawSearch() {
 }
 function goLot(id) {
   const inp = $("[data-search-in]"), f = S.byId.get(id); if (!f) return;
-  inp.value = f.properties.a; inp.blur(); drawSearch();
+  if (isWide()) { inp.value = f.properties.a; inp.blur(); drawSearch(); } else closeSearch();   // phones: back to the bar; the card names the lot
   if (S.page) closePage();
   if (S.sheet && S.sheet !== "switch") closeSheet();
   select(id, Math.max(gl.getZoom(), 17.5));
 }
 function clearSearch() { const inp = $("[data-search-in]"); inp.value = ""; searchHi = 0; drawSearch(); inp.focus(); }
+function openSearch() {
+  closeDl(); const bar = $("[data-tbar]"); bar.classList.add("searching");
+  $("[data-tool=search]").setAttribute("aria-expanded", "true");
+  const inp = $("[data-search-in]"); inp.focus(); drawSearch();
+}
+function closeSearch() {
+  const bar = $("[data-tbar]"), inp = $("[data-search-in]");
+  inp.value = ""; searchHi = 0; bar.classList.remove("searching"); inp.blur();
+  $("[data-tool=search]").setAttribute("aria-expanded", "false"); drawSearch();
+}
+const searching = () => $("[data-tbar]").classList.contains("searching");
+
+/* download: a short list under the icon. The two public files download at once; a group's files need the code,
+   which the Download the data page asks for. */
+function openDl() {
+  const btn = $("[data-dl-open]"), p = $("[data-dlp]");
+  if (searching()) closeSearch();
+  p.innerHTML = `<button data-dl="lots"><span>Votes by lot<span>One row per lot, CSV</span></span>${ICON.download}</button>
+    <button data-dl="votes"><span>Every vote<span>One row per vote, CSV</span></span>${ICON.download}</button>
+    <button data-go="data"><span>A group's votes<span>Needs the group code</span></span>${ICON.next}</button>
+    <p>No voter IDs and no times of day. <button class="why" data-go="data">More about the files</button></p>`;
+  p.style.left = ""; p.style.right = "";
+  if (isWide()) { const r = btn.getBoundingClientRect(); p.style.left = `${Math.min(r.left, innerWidth - 300)}px`; p.style.right = "auto"; }
+  p.hidden = false; btn.setAttribute("aria-expanded", "true");
+  $("button", p).focus({ preventScroll: true });
+}
+function closeDl(refocus) {
+  const p = $("[data-dlp]"); if (p.hidden) return false;
+  p.hidden = true; p.innerHTML = ""; const btn = $("[data-dl-open]"); btn.setAttribute("aria-expanded", "false"); if (refocus) btn.focus();
+  return true;
+}
 
 /* first visit: what this is, how to vote, and the location question (it replaces the one-sentence note) */
 const WELCOME_KEY = "plvt:welcomed";
@@ -1191,7 +1183,10 @@ function openWelcome(perm) {
     : `<p>Your location shows whether you're at the lot. We keep the distance, not where you are.</p><div class="acts"><button class="btn btn-dark btn-sm" data-loc-yes>Use my location</button><button class="btn btn-sm" data-loc-no>Not now</button></div>`;
   s.innerHTML = `<div class="pad wel"><h2>${esc(CONFIG.title)}</h2>
     <p>Say what should happen to Cleveland's city-owned vacant lots. Anyone can vote on any lot, and every vote is public.</p>
-    <ol class="steps"><li>Find a lot: zoom in, or search an address.</li><li>Tap the lot, then pick a choice below. Tap it again to clear it.</li></ol>
+    <p>Tap a lot, then pick a choice below. Tap it again to clear it.</p>
+    <ul class="tl">${[["search", "Search", "an address or parcel"], ["group", "Group", "start or join one"], ["share", "Share", "the map"],
+      ["card", "Voter card", "your votes on any device"], ["download", "Download", "the data"], ["about", "How votes count", ""], ["locate", "Find me", "on the map"]]
+      .map(([i, a, b]) => `<li><i aria-hidden="true">${ICON[i]}</i><span><b>${a}</b>${b ? ` <span class="muted">${b}</span>` : ""}</span></li>`).join("")}</ul>
     <div class="wloc">${loc}</div>
     <p class="wfoot"><button class="why" data-go="how">How votes count</button></p></div>`;
   s.hidden = false; drawBar();
@@ -1266,7 +1261,7 @@ function askSwitch(newId) {
 }
 
 /* pages over the map */
-function closePage() { S.page = null; const p = $("[data-page]"); p.hidden = true; p.innerHTML = ""; drawCard(); rowVis(); if (location.hash) history.replaceState(history.state, "", location.href.split("#")[0]); }
+function closePage() { S.page = null; const p = $("[data-page]"); p.hidden = true; p.innerHTML = ""; drawCard(); if (location.hash) history.replaceState(history.state, "", location.href.split("#")[0]); }
 function pageTop(title) { return `<div class="top"><h1>${esc(title)}</h1><button class="nx" data-close-page aria-label="Back to the map">${ICON.close}</button></div>`; }
 let qrP = null;
 function loadQr() {
@@ -1379,7 +1374,7 @@ function openData() {
       <p>One row per lot with votes: parcel, address, neighborhood, ward, and planning region; counts of each choice by where the votes were cast; the median time between votes, compared with every vote; and how the lot shows on the map.</p>
       <button class="btn btn-dark" data-dl="lots">Download votes by lot</button></div>
     <div class="panel dl"><h2>Every vote</h2>
-      <p>One row per vote: the lot, the choice, where it was cast from, the distance in feet, the seconds since the voter's previous vote and how that compares with every vote, the date, how fast the voter was moving, whether everyone's votes were showing, the Show votes cast filter, whether the city's record for the lot was opened, and whether the voter's location was found. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't. Group codes aren't included.</p>
+      <p>One row per vote: the lot, the choice, where it was cast from, the distance in feet, the seconds since the voter's previous vote and how that compares with every vote, the date, how fast the voter was moving, whether everyone's votes were showing, the Show votes cast filter (earlier versions of the map), whether the city's record for the lot was opened, and whether the voter's location was found. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't. Group codes aren't included.</p>
       <button class="btn btn-dark" data-dl="votes">Download every vote</button></div>
     <div class="panel dl"><h2>Group code</h2>
       <p>The same two files, with only one group's votes.</p>
@@ -1407,7 +1402,7 @@ async function download(kind, btn) {
     group = normGroup($("input", box).value); msg.textContent = "";
     if (!group) { msg.textContent = "Type a group code first."; return; }
   }
-  const was = btn.textContent; btn.textContent = "Preparing…"; btn.disabled = true;
+  const was = btn.innerHTML; btn.textContent = "Preparing…"; btn.disabled = true;
   const tag = group ? `-${group}` : "";
   try {
     if (kind === "lots") {
@@ -1431,10 +1426,11 @@ async function download(kind, btn) {
     if (e.code === "bad_group") { const m = $(".gmsg", btn.closest(".panel")); if (m) m.textContent = "No group with that code."; }
     else toast("The download didn't work. Try again in a moment.");
   }
-  finally { if (btn.isConnected) { btn.textContent = was; btn.disabled = false; } }
+  finally { if (btn.isConnected) { btn.innerHTML = was; btn.disabled = false; } }
 }
 function route() {
   const h = location.hash.replace(/^#\/?/, "");
+  if (h) { closeDl(); if (searching()) closeSearch(); }
   if (h === "card") return openCard();
   if (h === "how") return openHow();
   if (h === "data") return openData();
@@ -1445,18 +1441,19 @@ function route() {
 /* ----------------------------------------------------------------- events */
 function wire() {
   document.addEventListener("click", e => {
-    if (!e.target.closest?.(".fwrap")) closeFmenu();   // a tap anywhere else folds the filter list away
+    if (!e.target.closest?.("[data-dlp], [data-dl-open]")) closeDl();   // a tap anywhere else folds the download list away
     const t = e.target.closest("button, a"); if (!t) return;
-    if (t.matches("[data-fmenu]")) return closeFmenu() || openFmenu();
     if (t.matches("[data-choice]")) return vote(t.dataset.choice);
     if (t.matches("[data-close]")) return select(null);
-    if (t.matches("[data-more]")) return S.sheet === "more" ? closeSheet() : openMore();
+    if (t.matches("[data-tool=search]")) return openSearch();
+    if (t.matches("[data-dl-open]")) return closeDl() || openDl();
+    if (t.closest("[data-dlp]") && t.matches("[data-dl]")) return download(t.dataset.dl, t).then(() => closeDl());
     if (t.matches("[data-view]")) {
       if (t.dataset.view === S.view) return;
       S.view = t.dataset.view; $$("[data-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === S.view)); paint(); return;
     }
     if (t.matches("[data-lot]")) return goLot(t.dataset.lot);
-    if (t.matches("[data-search-clear]")) return clearSearch();
+    if (t.matches("[data-search-clear]")) return isWide() ? clearSearch() : closeSearch();
     if (t.matches("[data-welcome-ok]")) return closeSheet();
     if (t.matches("[data-nudge-close]")) return hideNudge();
     if (t.matches("[data-save-card]")) return saveCardImage(t);
@@ -1473,7 +1470,6 @@ function wire() {
     if (t.matches("[data-group-share]")) return shareGroup();
     if (t.matches("[data-gfilter-off]")) return setGroupFilter(null);
     if (t.matches("[data-locate]")) return useLoc();
-    if (t.matches("[data-filter]")) return setFarthest(t.dataset.filter);
     if (t.matches("[data-share]")) { closeSheet(); return shareMap(); }
     if (t.matches("[data-dl]")) return download(t.dataset.dl, t);
     if (t.matches("[data-copy]")) {
@@ -1489,30 +1485,24 @@ function wire() {
   // "City record" opened on this lot's card (toggle doesn't bubble, so listen on the way down)
   document.addEventListener("toggle", e => {
     if (e.target.matches?.("details.cx") && e.target.open && S.sel) S.openedRecord = true;
-    if (e.target.matches?.("details[data-tally]")) S.tallyOpen = e.target.open;   // not the city record: doesn't count as opened_record
   }, true);
   // search: results as you type; arrows move, Enter goes, Esc clears
   const sin = $("[data-search-in]");
   sin.addEventListener("input", () => { searchHi = 0; drawSearch(); });
   sin.addEventListener("focus", drawSearch);
-  sin.addEventListener("blur", () => setTimeout(drawSearch, 0));
+  sin.addEventListener("blur", () => setTimeout(() => { if (!isWide() && searching() && !sin.value && document.activeElement !== sin) closeSearch(); else drawSearch(); }, 0));
   sin.addEventListener("keydown", e => {
-    if (e.key === "Escape") { e.stopPropagation(); if (sin.value) { sin.value = ""; drawSearch(); } else sin.blur(); return; }
+    if (e.key === "Escape") { e.stopPropagation(); if (!isWide()) return closeSearch(); if (sin.value) { sin.value = ""; drawSearch(); } else sin.blur(); return; }
     if ((e.key === "ArrowDown" || e.key === "ArrowUp") && searchHits.length) { e.preventDefault(); searchHi = (searchHi + (e.key === "ArrowDown" ? 1 : searchHits.length - 1)) % searchHits.length; drawSearch(); }
   });
   $("[data-sres]").addEventListener("pointerdown", e => e.preventDefault());   // keep the field focused until the tap lands
   document.addEventListener("keydown", e => {
     if (e.target.matches("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
-    const fm = $("[data-vrow] .fmenu");
-    if (fm && (e.key === "ArrowDown" || e.key === "ArrowUp")) {   // move through the filter list
-      e.preventDefault(); const items = $$("button", fm), i = items.indexOf(document.activeElement);
-      items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1) + (i < 0 ? 1 : 0)) % items.length].focus(); return;
-    }
-    if (e.key === "Escape") { if (closeFmenu(true)) return; if (S.page) return closePage(); if (S.sheet && S.sheet !== "switch") return closeSheet(); if (S.sel) return select(null); }
+    if (e.key === "Escape") { if (closeDl(true)) return; if (S.page) return closePage(); if (S.sheet && S.sheet !== "switch") return closeSheet(); if (S.sel) return select(null); }
     if (!S.page && /^[1-3]$/.test(e.key) && S.sel) vote(CHOICES[+e.key - 1].key);
   });
   addEventListener("hashchange", route);
-  addEventListener("resize", rowVis);
+  addEventListener("resize", () => { setDockH(); if (isWide() && searching()) closeSearch(); closeDl(); });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && Date.now() - tallyAt > CONFIG.refreshSeconds * 1000) Promise.all([refreshTallies(), refreshMine()]).then(() => { paint(); drawCard(); }).catch(() => {});
   });
@@ -1560,8 +1550,11 @@ async function boot() {
 
   buildSearch();
   await initMap();
-  $("[data-boot]").hidden = true; $("[data-dock]").hidden = false; $("[data-search]").hidden = false;
-  drawView(); drawBar(); drawLocate();
+  $("[data-boot]").hidden = true; $("[data-dock]").hidden = false;
+  $$("[data-tbar] .tb").forEach(b => { const k = b.dataset.tool || b.dataset.go || (b.hasAttribute("data-share") ? "share" : b.hasAttribute("data-dl-open") ? "download" : "locate");
+    b.innerHTML = ICON[{ how: "about" }[k] || k]; });
+  $("[data-tbar]").hidden = false;
+  drawBar(); drawLocate(); drawSearch();
   try { await Promise.all([refreshTallies(), refreshMine()]); } catch { toast("Couldn't reach the record. Votes will show when it's back."); }
   paint();
   startLive();
