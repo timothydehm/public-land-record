@@ -130,6 +130,7 @@ dl.city dd.blank{color:#a19da6;font-style:italic}
 .tb{flex:none;width:44px;height:44px;border:0;border-radius:11px;background:transparent;display:grid;place-items:center;color:var(--ink);-webkit-tap-highlight-color:transparent}
 .tb:hover{background:var(--mist)}
 .tb[aria-expanded="true"]{background:var(--ink);color:#fff}
+.tb.on[aria-expanded="true"]{color:#fff}
 .tb svg{width:22px;height:22px}
 .tb.on{color:#2F6FEB}
 .tsearch{display:none;position:relative;flex:1;min-width:0}
@@ -148,13 +149,6 @@ dl.city dd.blank{color:#a19da6;font-style:italic}
 .sres button:hover,.sres button.hi{background:var(--mist)}
 .sres button span{display:block;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .sres p{margin:0;padding:9px 10px;font-size:14px;color:var(--muted)}
-/* download: the two files, and a way to a group's */
-.dlp{position:fixed;z-index:21;top:calc(env(safe-area-inset-top,0px) + 64px);right:8px;width:290px;max-width:calc(100% - 16px);background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:5px;animation:cardIn .14s ease-out}
-.dlp button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:0;background:none;border-radius:10px;padding:9px 10px;text-align:left;font-size:15px;font-weight:550}
-.dlp button:hover{background:var(--mist)}
-.dlp button>span>span{display:block;font-size:12.5px;font-weight:400;color:var(--muted)}
-.dlp button svg{width:18px;height:18px;color:var(--muted);flex:none}
-.dlp p{margin:3px 10px 7px;font-size:12.5px;color:var(--muted)}
 @media (min-width:900px){
   .tbar .row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);padding:0 16px;gap:12px}
   .tbar .tools,.tbar .tright{display:flex;gap:6px;align-items:center}
@@ -195,23 +189,38 @@ dl.city dd.blank{color:#a19da6;font-style:italic}
   transition:opacity .18s,transform .18s;top:calc(env(safe-area-inset-top,0px) + 68px)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
-/* full pages over the map: your voter card, how votes count */
-.page{position:fixed;z-index:50;inset:0;background:var(--mist);overflow:auto;-webkit-overflow-scrolling:touch}
-.page .in{max-width:620px;margin:0 auto;padding:18px 18px 60px}
-.page .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
-.page h1{font-size:24px;letter-spacing:-.015em;margin:0}
-.page h2{font-size:17px;margin:26px 0 8px;letter-spacing:-.005em}
-.page p,.page li{max-width:62ch}
-.page p{margin:0 0 10px}
-.page ul{margin:0 0 10px;padding-left:20px}
-.page li{margin-bottom:5px}
-.panel{background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);padding:18px}
+/* what each top-bar icon opens: a card under the bar, with the map still showing around it. Phones: across the
+   screen above the tray; wide screens: hanging under its icon. A tap on the map folds it away. */
+.page{position:fixed;z-index:22;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 64px);
+  max-height:min(60dvh, calc(100dvh - env(safe-area-inset-top,0px) - 64px - var(--dock-h,80px) - 22px));overflow:auto;overscroll-behavior:contain;
+  background:var(--paper);border-radius:var(--r-card);box-shadow:var(--shadow);animation:popIn .16s ease-out}
+@keyframes popIn{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+.page .in{padding:0 16px 16px}
+.page .top{display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;z-index:1;background:var(--paper);padding:12px 0 8px}
+.page h1{font-size:18px;letter-spacing:-.01em;margin:0}
+.page h2{font-size:15px;margin:16px 0 6px;letter-spacing:-.005em}
+.page p{margin:0 0 10px;font-size:14.5px;line-height:1.45}
+.page .nx{width:36px;height:36px;border-radius:10px}
+.page .link{font-size:12.5px;color:var(--muted);word-break:break-all;font-variant-numeric:tabular-nums;margin:2px 0 12px}
+.page .acts{display:flex;gap:8px;flex-wrap:wrap}
+.panel{border-top:1px solid var(--mist);margin-top:14px;padding-top:2px}
+.panel.first{border-top:0;margin-top:0;padding-top:0}
+/* download: the two files as rows, like a list */
+.dlist{display:grid;gap:2px;margin:0 -8px}
+.dlist button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:0;background:none;border-radius:10px;padding:9px 10px;text-align:left;font-size:15px;font-weight:550}
+.dlist button:hover{background:var(--mist)}
+.dlist button>span>span{display:block;font-size:12.5px;font-weight:400;color:var(--muted)}
+.dlist button svg{width:18px;height:18px;color:var(--muted);flex:none}
+.page details.about{margin-top:14px;border-top:1px solid var(--mist);padding-top:8px}
+.page details.about summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:4px 0}
+.page details.about p{font-size:13.5px;color:var(--muted)}
+@media (min-width:900px){.page{right:auto;width:400px;max-height:calc(100dvh - 64px - var(--dock-h,80px) - 22px)}}
 .vc{text-align:center}
-.vc .qr{width:min(260px,70vw);aspect-ratio:1;margin:4px auto 14px;display:grid;place-items:center}
+.vc .qr{width:min(200px,56vw);aspect-ratio:1;margin:2px auto 12px;display:grid;place-items:center}
 .vc .qr svg{width:100%;height:100%;display:block}
 .vc .btn{min-width:180px}
-.vc p{margin:14px auto 0;font-size:14.5px;color:var(--muted)}
-.vc .link{margin-top:10px;font-size:12.5px;color:var(--muted);word-break:break-all;font-variant-numeric:tabular-nums}
+.vc p{margin:12px auto 0;font-size:14px;color:var(--muted)}
+.vc .link{margin:10px 0 0}
 
 /* the group chip above the bar */
 .gchip{display:flex;justify-content:flex-start;flex-wrap:wrap;gap:6px}
@@ -252,13 +261,13 @@ dl.city dd.blank{color:#a19da6;font-style:italic}
 <header class="tbar" data-tbar hidden>
   <div class="row" role="toolbar" aria-label="Tools">
     <div class="tname">Public Land Voting Tool</div>
-    <button class="tb" data-tool="search" aria-label="Search an address or parcel" title="Search" aria-expanded="false"></button>
+    <button class="tb" data-tool="search" data-icon="search" aria-label="Search an address or parcel" title="Search" aria-expanded="false"></button>
     <div class="tools">
-      <button class="tb" data-go="group" aria-label="Group" title="Group"></button>
-      <button class="tb" data-share aria-label="Share the map" title="Share the map"></button>
-      <button class="tb" data-go="card" aria-label="Your voter card" title="Your voter card"></button>
-      <button class="tb" data-dl-open aria-label="Download the data" title="Download the data" aria-haspopup="true" aria-expanded="false"></button>
-      <button class="tb" data-go="how" aria-label="How votes count" title="How votes count"></button>
+      <button class="tb" data-go="group" data-icon="group" aria-label="Group" title="Group" aria-expanded="false"></button>
+      <button class="tb" data-go="share" data-icon="share" aria-label="Share the map" title="Share the map" aria-expanded="false"></button>
+      <button class="tb" data-go="card" data-icon="card" aria-label="Your voter card" title="Your voter card" aria-expanded="false"></button>
+      <button class="tb" data-go="data" data-icon="download" aria-label="Download the data" title="Download the data" aria-expanded="false"></button>
+      <button class="tb" data-go="how" data-icon="about" aria-label="How votes count" title="How votes count" aria-expanded="false"></button>
     </div>
     <div class="tright">
       <div class="tsearch">
@@ -268,12 +277,11 @@ dl.city dd.blank{color:#a19da6;font-style:italic}
           <button type="button" class="sx" data-search-clear aria-label="Close the search"></button>
         </form>
       </div>
-      <button class="tb" data-locate aria-label="Center the map on me" title="Center the map on me"></button>
+      <button class="tb" data-locate data-icon="locate" aria-label="Center the map on me" title="Center the map on me"></button>
     </div>
   </div>
 </header>
 <div class="sres" id="sres" data-sres hidden></div>
-<div class="dlp" data-dlp role="dialog" aria-label="Download the data" hidden></div>
 <div class="nudge" data-nudge role="status" hidden></div>
 <div class="zhint" data-zhint role="status"></div>
 <div class="dock" data-dock hidden>
@@ -282,7 +290,7 @@ dl.city dd.blank{color:#a19da6;font-style:italic}
   <div class="gchip" data-gchip hidden></div>
   <nav class="vbar" data-bar aria-label="Vote"></nav>
 </div>
-<div class="page" data-page hidden></div>
+<section class="page" data-page role="dialog" aria-modal="false" hidden></section>
 <div class="boot" data-boot><div><b>Public Land Voting Tool</b><span data-boot-msg>Loading the city's lots…</span></div></div>
 <div class="toast" id="toast" role="alert" aria-live="assertive"></div>
 
@@ -314,7 +322,8 @@ dl.city dd.blank{color:#a19da6;font-style:italic}
    counts, colors or which votes come first.
    The screen (Oct 30): a top bar with every tool as an icon (search, group,
    share, voter card, download, how votes count, locate; on wide screens the
-   name, the tools and a search field); a tray with the three choices and
+   name, the tools and a search field), each opening a card under the bar
+   with the map still showing; a tray with the three choices and
    Everyone / Mine; the lot card shows the result, a chart (a line per
    choice, a dot per vote, the lot on the left), timing, your vote, and
    the city record. A first-visit sheet names the tools once; after the
@@ -866,7 +875,6 @@ async function initMap() {
   gl.on("error", e => console.warn("Map:", e.error?.message || e));
   gl.on("styleimagemissing", e => { const m = /^h-(.+)$/.exec(e.id); if (m && CK[m[1]] && !gl.hasImage(e.id)) gl.addImage(e.id, hatchImage(CK[m[1]].color), { pixelRatio: 2 }); });
   gl.on("click", e => {
-    if (S.sheet === "more") return closeSheet();   // a tap on the map first folds More away
     const exact = gl.queryRenderedFeatures(e.point, { layers: ["lots-fill"] });
     const f = exact.length ? exact : gl.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], { layers: ["lots-fill", "dots"] });
     const hit = f.find(x => x.layer.id === "lots-fill") || f[0];
@@ -905,7 +913,7 @@ function select(id, zoom) {
   if (S.sel && gl) gl.setFeatureState({ source: "parcels", id: S.sel }, { s: false });
   S.sel = id; S.openedRecord = false;
   if (id && gl) gl.setFeatureState({ source: "parcels", id }, { s: true });
-  if (id) { closeSheet(); loadInfo(id); }
+  if (id) { if (S.page) closePage(); closeSheet(); loadInfo(id); }
   drawBar(); drawCard(true);
   if (id) keepInView(id, zoom);
 }
@@ -1141,7 +1149,7 @@ function goLot(id) {
 }
 function clearSearch() { const inp = $("[data-search-in]"); inp.value = ""; searchHi = 0; drawSearch(); inp.focus(); }
 function openSearch() {
-  closeDl(); const bar = $("[data-tbar]"); bar.classList.add("searching");
+  if (S.page) closePage(); const bar = $("[data-tbar]"); bar.classList.add("searching");
   $("[data-tool=search]").setAttribute("aria-expanded", "true");
   const inp = $("[data-search-in]"); inp.focus(); drawSearch();
 }
@@ -1151,26 +1159,6 @@ function closeSearch() {
   $("[data-tool=search]").setAttribute("aria-expanded", "false"); drawSearch();
 }
 const searching = () => $("[data-tbar]").classList.contains("searching");
-
-/* download: a short list under the icon. The two public files download at once; a group's files need the code,
-   which the Download the data page asks for. */
-function openDl() {
-  const btn = $("[data-dl-open]"), p = $("[data-dlp]");
-  if (searching()) closeSearch();
-  p.innerHTML = `<button data-dl="lots"><span>Votes by lot<span>One row per lot, CSV</span></span>${ICON.download}</button>
-    <button data-dl="votes"><span>Every vote<span>One row per vote, CSV</span></span>${ICON.download}</button>
-    <button data-go="data"><span>A group's votes<span>Needs the group code</span></span>${ICON.next}</button>
-    <p>No voter IDs and no times of day. <button class="why" data-go="data">More about the files</button></p>`;
-  p.style.left = ""; p.style.right = "";
-  if (isWide()) { const r = btn.getBoundingClientRect(); p.style.left = `${Math.min(r.left, innerWidth - 300)}px`; p.style.right = "auto"; }
-  p.hidden = false; btn.setAttribute("aria-expanded", "true");
-  $("button", p).focus({ preventScroll: true });
-}
-function closeDl(refocus) {
-  const p = $("[data-dlp]"); if (p.hidden) return false;
-  p.hidden = true; p.innerHTML = ""; const btn = $("[data-dl-open]"); btn.setAttribute("aria-expanded", "false"); if (refocus) btn.focus();
-  return true;
-}
 
 /* first visit: what this is, how to vote, and the location question (it replaces the one-sentence note) */
 const WELCOME_KEY = "plvt:welcomed";
@@ -1261,8 +1249,32 @@ function askSwitch(newId) {
 }
 
 /* pages over the map */
-function closePage() { S.page = null; const p = $("[data-page]"); p.hidden = true; p.innerHTML = ""; drawCard(); if (location.hash) history.replaceState(history.state, "", location.href.split("#")[0]); }
-function pageTop(title) { return `<div class="top"><h1>${esc(title)}</h1><button class="nx" data-close-page aria-label="Back to the map">${ICON.close}</button></div>`; }
+// What each top-bar icon opens: a card under the bar (Group, Share, Your voter card, Download the data, How votes
+// count). The map stays in view; a tap on it, Esc, × or the same icon folds the card away. Each has a #/ link.
+function openPop(kind) {
+  if (searching()) closeSearch();
+  S.page = kind; select(null); closeSheet();
+}
+function showPop() {
+  const p = $("[data-page]");
+  p.setAttribute("aria-label", $("h1", p)?.textContent || "");
+  p.hidden = false; p.scrollTop = 0;
+  $$("[data-tbar] [data-go]").forEach(b => b.setAttribute("aria-expanded", String(b.dataset.go === S.page)));
+  placePop(); drawCard();
+}
+function placePop() {   // wide screens: hang under the icon that opened it
+  const p = $("[data-page]"); if (p.hidden) return;
+  p.style.left = ""; if (!isWide()) return;
+  const b = $(`[data-tbar] [data-go="${S.page}"]`); if (!b) return;
+  const r = b.getBoundingClientRect(), w = p.offsetWidth;
+  p.style.left = `${Math.round(Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8)))}px`;
+}
+function closePage() {
+  S.page = null; const p = $("[data-page]"); p.hidden = true; p.innerHTML = "";
+  $$("[data-tbar] [data-go]").forEach(b => b.setAttribute("aria-expanded", "false"));
+  drawCard(); if (location.hash) history.replaceState(history.state, "", location.href.split("#")[0]);
+}
+function pageTop(title) { return `<div class="top"><h1>${esc(title)}</h1><button class="nx" data-close-page aria-label="Close">${ICON.close}</button></div>`; }
 let qrP = null;
 function loadQr() {
   return qrP ||= new Promise((ok, no) => {
@@ -1283,21 +1295,21 @@ async function copyText(text) {
   } catch { return false; }
 }
 async function openCard() {
-  S.page = "card"; select(null); closeSheet(); hideNudge(); ls.set(NUDGE_KEY, "seen-card");
+  openPop("card"); hideNudge(); ls.set(NUDGE_KEY, "seen-card");
   const p = $("[data-page]"), link = cardLink();
-  p.innerHTML = `<div class="in">${pageTop("Your voter card")}<div class="panel vc">
+  p.innerHTML = `<div class="in">${pageTop("Your voter card")}<div class="vc">
     <div class="qr" data-qr aria-label="QR code of your voter card link" role="img"></div>
     <div class="acts"><button class="btn btn-dark" data-copy>Copy link</button><button class="btn" data-save-card>Save image</button></div>
     <p>Save this link or the image to get your votes back on any device. Anyone with it can vote as you.</p>
     <div class="link">${esc(link)}</div></div></div>`;
-  p.hidden = false; p.scrollTop = 0; drawCard();
+  showPop();
   try { $("[data-qr]", p).innerHTML = await qrSvg(link); } catch { $("[data-qr]", p).innerHTML = `<span class="muted">The code didn't load. The link below works the same way.</span>`; }
 }
 function openHow() {
-  S.page = "how"; select(null); closeSheet();
+  openPop("how");
   const p = $("[data-page]");
   p.innerHTML = `<div class="in">${pageTop("How votes count")}
-    <h2>What happens when you vote</h2>
+    <h2 style="margin-top:4px">What happens when you vote</h2>
     <p>Anyone can vote on any lot. There's no sign-up and no limit. Instead of checking who you are, we record how each vote was cast. Then anyone looking at the results can see what kind of votes are behind them.</p>
     <h2>What we record with each vote</h2>
     <p>Your choice and the lot. How far you were from the lot, rounded, and whether you were in the lot's neighborhood and ward. We keep the distance, never where you were. Whether your device could find its location, or you chose not to share it. How fast you were moving. How long it had been since your previous vote. Whether you could see other people's votes when you voted. Whether you opened the city's record for the lot. Whether you used a phone or a computer, and whether you came from a printed card. Your group code, if you joined one. The date and time.</p>
@@ -1312,19 +1324,20 @@ function openHow() {
     <h2>How others may use it</h2>
     <p>A city department, a council member, or a neighborhood group may decide some votes deserve more weight than others. For example, they might count only votes cast in the neighborhood, or leave out votes cast seconds apart. That's their choice, and anyone can check it against the same data. If someone tells you how people voted, ask them which votes they counted.</p>
   </div>`;
-  p.hidden = false; p.scrollTop = 0; drawCard();
+  showPop();
 }
 // Group: the device's group (large, with its link, QR code and Share), Start a group, Join a group.
 async function openGroup(msg = "") {
-  S.page = "group"; select(null); closeSheet();
+  const keep = S.page === "group" ? $("[data-page]").scrollTop : 0;
+  openPop("group");
   const p = $("[data-page]");
   p.innerHTML = `<div class="in">${pageTop("Group")}
-    ${S.group ? `<div class="panel vc"><div class="code" data-code>${esc(S.group)}</div>
+    ${S.group ? `<div class="panel first vc"><div class="code" data-code>${esc(S.group)}</div>
       <div class="qr" data-qr aria-label="QR code of the group link" role="img"></div>
       <div class="acts"><button class="btn btn-dark" data-group-copy>Copy link</button><button class="btn" data-group-share>Share</button></div>
       <p>Anyone with this code can join the group and see its votes.</p>
       <div class="link">${esc(groupLink())}</div></div>` : ""}
-    <div class="panel dl"><h2>Start a group</h2>
+    <div class="panel dl${S.group ? "" : " first"}"><h2${S.group ? "" : ` style="margin-top:4px"`}>Start a group</h2>
       <p>A new code for a block club or coalition. Votes cast while it's on are gathered under it. It doesn't change how any vote counts.</p>
       <button class="btn btn-dark" data-group-start>Start a group</button></div>
     <div class="panel dl"><h2>Join a group</h2>
@@ -1336,7 +1349,7 @@ async function openGroup(msg = "") {
       <form class="gform" data-gfilter-form><input name="code" placeholder="Group code" value="${esc(S.group || "")}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Group code to show">
         <button class="btn btn-dark btn-sm" type="submit">Show on the map</button></form><div class="gmsg" role="status"></div>`}</div>
   </div>`;
-  p.hidden = false; p.scrollTop = 0; drawCard();
+  showPop(); p.scrollTop = keep;   // redrawn in place (a code started or joined, a filter set or cleared): stay put
   if (S.group) { try { $("[data-qr]", p).innerHTML = await qrSvg(groupLink()); } catch { const q = $("[data-qr]", p); if (q) q.innerHTML = `<span class="muted">The code didn't load. The link below works the same way.</span>`; } }
 }
 async function startGroup(btn) {
@@ -1366,23 +1379,35 @@ async function shareGroup() {
   pill(await copyText(url) ? "Group link copied" : "Couldn't copy the link", 2200);
 }
 function openData() {
-  S.page = "data"; select(null); closeSheet();
+  openPop("data");
   const p = $("[data-page]");
   p.innerHTML = `<div class="in">${pageTop("Download the data")}
-    <p>The record is public. Anyone can download it as a spreadsheet (CSV). Neither file has voter IDs or times of day, so no one's votes can be pieced together into where they went.</p>
-    <div class="panel dl"><h2>Votes by lot</h2>
-      <p>One row per lot with votes: parcel, address, neighborhood, ward, and planning region; counts of each choice by where the votes were cast; the median time between votes, compared with every vote; and how the lot shows on the map.</p>
-      <button class="btn btn-dark" data-dl="lots">Download votes by lot</button></div>
-    <div class="panel dl"><h2>Every vote</h2>
-      <p>One row per vote: the lot, the choice, where it was cast from, the distance in feet, the seconds since the voter's previous vote and how that compares with every vote, the date, how fast the voter was moving, whether everyone's votes were showing, the Show votes cast filter (earlier versions of the map), whether the city's record for the lot was opened, and whether the voter's location was found. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't. Group codes aren't included.</p>
-      <button class="btn btn-dark" data-dl="votes">Download every vote</button></div>
-    <div class="panel dl"><h2>Group code</h2>
+    <div class="dlist">
+      <button data-dl="lots"><span>Votes by lot<span>One row per lot, CSV</span></span>${ICON.download}</button>
+      <button data-dl="votes"><span>Every vote<span>One row per vote, CSV</span></span>${ICON.download}</button>
+    </div>
+    <p class="muted" style="font-size:13px;margin:8px 0 0">The record is public. Neither file has voter IDs or times of day, so no one's votes can be pieced together into where they went.</p>
+    <div class="panel dl"><h2>A group's votes</h2>
       <p>The same two files, with only one group's votes.</p>
-      <form class="gform" data-dl-group><input name="code" placeholder="Group code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Group code"></form>
+      <form class="gform" data-dl-group><input name="code" placeholder="Group code" value="${esc(S.group || "")}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Group code"></form>
       <div class="gmsg" role="status"></div>
-      <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn btn-dark btn-sm" data-dl="lots" data-dl-g>Download votes by lot</button><button class="btn btn-dark btn-sm" data-dl="votes" data-dl-g>Download every vote</button></div></div>
+      <div class="acts" style="margin-top:10px"><button class="btn btn-dark btn-sm" data-dl="lots" data-dl-g>Votes by lot</button><button class="btn btn-dark btn-sm" data-dl="votes" data-dl-g>Every vote</button></div></div>
+    <details class="about"><summary>What's in the files</summary>
+      <p><b>Votes by lot:</b> one row per lot with votes: parcel, address, neighborhood, ward, and planning region; counts of each choice by where the votes were cast; the median time between votes, compared with every vote; and how the lot shows on the map.</p>
+      <p><b>Every vote:</b> one row per vote: the lot, the choice, where it was cast from, the distance in feet, the seconds since the voter's previous vote and how that compares with every vote, the date, how fast the voter was moving, whether everyone's votes were showing, the Show votes cast filter (earlier versions of the map), whether the city's record for the lot was opened, and whether the voter's location was found. Each voter's current vote on a lot is included; earlier changes and cleared votes aren't. Group codes aren't included.</p></details>
   </div>`;
-  p.hidden = false; p.scrollTop = 0; drawCard();
+  showPop();
+}
+// Share: the plain map link (never a voter card), copied or through the phone's share sheet.
+function openShare() {
+  openPop("share");
+  const p = $("[data-page]"), url = pageBase();
+  p.innerHTML = `<div class="in">${pageTop("Share the map")}
+    <p>Anyone with the link can open the map and vote. Your votes don't come with it.</p>
+    <div class="link">${esc(url)}</div>
+    <div class="acts"><button class="btn btn-dark" data-copy-map>Copy link</button>${navigator.share ? `<button class="btn" data-share>Share</button>` : ""}</div>
+  </div>`;
+  showPop();
 }
 function downloadFile(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -1430,24 +1455,24 @@ async function download(kind, btn) {
 }
 function route() {
   const h = location.hash.replace(/^#\/?/, "");
-  if (h) { closeDl(); if (searching()) closeSearch(); }
+  if (h && searching()) closeSearch();
   if (h === "card") return openCard();
   if (h === "how") return openHow();
   if (h === "data") return openData();
   if (h === "group") return openGroup();
+  if (h === "share") return openShare();
   if (S.page) closePage();
 }
 
 /* ----------------------------------------------------------------- events */
 function wire() {
   document.addEventListener("click", e => {
-    if (!e.target.closest?.("[data-dlp], [data-dl-open]")) closeDl();   // a tap anywhere else folds the download list away
+    // a tap outside the open card (on the map, the tray) folds it away; the top bar's own icons decide for themselves
+    if (e.isTrusted && S.page && !e.target.closest?.("[data-page], [data-tbar], [data-sheet], [data-nudge], .toast")) closePage();   // not a download's own link
     const t = e.target.closest("button, a"); if (!t) return;
     if (t.matches("[data-choice]")) return vote(t.dataset.choice);
     if (t.matches("[data-close]")) return select(null);
     if (t.matches("[data-tool=search]")) return openSearch();
-    if (t.matches("[data-dl-open]")) return closeDl() || openDl();
-    if (t.closest("[data-dlp]") && t.matches("[data-dl]")) return download(t.dataset.dl, t).then(() => closeDl());
     if (t.matches("[data-view]")) {
       if (t.dataset.view === S.view) return;
       S.view = t.dataset.view; $$("[data-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === S.view)); paint(); return;
@@ -1457,7 +1482,12 @@ function wire() {
     if (t.matches("[data-welcome-ok]")) return closeSheet();
     if (t.matches("[data-nudge-close]")) return hideNudge();
     if (t.matches("[data-save-card]")) return saveCardImage(t);
-    if (t.matches("[data-go]")) { if (t.closest("[data-nudge]")) hideNudge(); location.hash = `#/${t.dataset.go}`; return; }
+    if (t.matches("[data-go]")) {
+      if (t.closest("[data-nudge]")) hideNudge();
+      if (t.closest("[data-tbar]") && S.page === t.dataset.go) return closePage();   // the same icon again folds it away
+      location.hash = `#/${t.dataset.go}`; return;
+    }
+    if (t.matches("[data-copy-map]")) { copyText(pageBase()).then(ok => { t.textContent = ok ? "Copied" : "Couldn't copy"; setTimeout(() => { if (t.isConnected) t.textContent = "Copy link"; }, 2200); }); return; }
     if (t.matches("[data-close-page]")) return closePage();
     if (t.matches("[data-loc-yes]")) { ls.set(LOC_KEY, "asked"); closeSheet(); return startWatch(); }
     if (t.matches("[data-loc-no]")) { ls.set(LOC_KEY, "later"); whyOnFail = false; closeSheet(); return; }
@@ -1470,7 +1500,7 @@ function wire() {
     if (t.matches("[data-group-share]")) return shareGroup();
     if (t.matches("[data-gfilter-off]")) return setGroupFilter(null);
     if (t.matches("[data-locate]")) return useLoc();
-    if (t.matches("[data-share]")) { closeSheet(); return shareMap(); }
+    if (t.matches("[data-share]")) return shareMap();
     if (t.matches("[data-dl]")) return download(t.dataset.dl, t);
     if (t.matches("[data-copy]")) {
       copyText(cardLink()).then(ok => { t.textContent = ok ? "Copied" : "Couldn't copy: select the link below"; setTimeout(() => { if (t.isConnected) t.textContent = "Copy link"; }, 2200); });
@@ -1498,11 +1528,11 @@ function wire() {
   $("[data-sres]").addEventListener("pointerdown", e => e.preventDefault());   // keep the field focused until the tap lands
   document.addEventListener("keydown", e => {
     if (e.target.matches("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === "Escape") { if (closeDl(true)) return; if (S.page) return closePage(); if (S.sheet && S.sheet !== "switch") return closeSheet(); if (S.sel) return select(null); }
+    if (e.key === "Escape") { if (S.page) { const k = S.page; closePage(); $(`[data-tbar] [data-go="${k}"]`)?.focus(); return; } if (S.sheet && S.sheet !== "switch") return closeSheet(); if (S.sel) return select(null); }
     if (!S.page && /^[1-3]$/.test(e.key) && S.sel) vote(CHOICES[+e.key - 1].key);
   });
   addEventListener("hashchange", route);
-  addEventListener("resize", () => { setDockH(); if (isWide() && searching()) closeSearch(); closeDl(); });
+  addEventListener("resize", () => { setDockH(); if (isWide() && searching()) closeSearch(); placePop(); });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && Date.now() - tallyAt > CONFIG.refreshSeconds * 1000) Promise.all([refreshTallies(), refreshMine()]).then(() => { paint(); drawCard(); }).catch(() => {});
   });
@@ -1551,8 +1581,7 @@ async function boot() {
   buildSearch();
   await initMap();
   $("[data-boot]").hidden = true; $("[data-dock]").hidden = false;
-  $$("[data-tbar] .tb").forEach(b => { const k = b.dataset.tool || b.dataset.go || (b.hasAttribute("data-share") ? "share" : b.hasAttribute("data-dl-open") ? "download" : "locate");
-    b.innerHTML = ICON[{ how: "about" }[k] || k]; });
+  $$("[data-tbar] .tb").forEach(b => { b.innerHTML = ICON[b.dataset.icon]; });
   $("[data-tbar]").hidden = false;
   drawBar(); drawLocate(); drawSearch();
   try { await Promise.all([refreshTallies(), refreshMine()]); } catch { toast("Couldn't reach the record. Votes will show when it's back."); }
